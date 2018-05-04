@@ -6,7 +6,7 @@
 	jmp runDemo_
 updateMusic_
 	.include "mptplfox.asm" ; player routine
-msxptr	.binary "LOST_TUM.MPT", 2
+msxptr	.binary "RAVETARI.MPT", 2
 msx = msxptr + 4
 	
 runDemo_
