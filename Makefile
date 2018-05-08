@@ -9,6 +9,7 @@ LZ := utils/lzcomp${EXE}
 .PHONY: all clean
 
 includes := $(PYTHON) utils/incscan.py
+lstconv := $(PYTHON) utils/lstconv.py
 parts := 0_loader_music.lz 1_botb_logo.lz
 
 all: pdv_nbsk.xex
@@ -16,6 +17,7 @@ all: pdv_nbsk.xex
 clean:
 	rm -f pdv_nbsk.xex
 	rm -f $(LZ)
+	rm -f $(shell find . -name '*.lst')
 	rm -f $(shell find . -name '*.lz')
 
 ${LZ}: utils/lzcomp.c
@@ -26,11 +28,13 @@ ${LZ}: utils/lzcomp.c
 # demo parts
 %.o: dep = $(shell $(includes) $(@D)/$*.asm)
 %.o: %.asm $(dep)
-	$(AS) $(OFLAGS) -o $@ $<
+	$(AS) $(OFLAGS) -l $*.lst -o $@ $<
+	$(lstconv) $*.lst
 
 # right now we only use lzcomp for compressing part objects
 %.lz: %.o ${LZ}
 	$(LZ) $< $@
 
 pdv_nbsk.xex: init.asm $(shell $(includes) init.asm) $(parts)
-	$(AS) $(XEXFLAGS) -o $@ init.asm
+	$(AS) $(XEXFLAGS) -l init.lst -o $@ init.asm
+	$(lstconv) init.lst
