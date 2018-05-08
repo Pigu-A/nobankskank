@@ -36,3 +36,7 @@ compressedPartAddresses = partEntry-(NUM_PARTS*2) ; pointer to compressed part a
 partEntry   = $2000 ; every demo parts (except part 0) get decompressed here and jumped to
 xexStart    = partEntry ; entry point of this demo executable
 
+; math tables
+QSTableLo  = $f800 ; 1024 bytes, for multiplication
+QSTableHi  = $fa00
+SineTable  = $fc00 ; 256 bytes

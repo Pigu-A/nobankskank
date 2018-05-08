@@ -42,6 +42,18 @@ mvy	.function s, d
 	sty d
 	.endf
 	
+neg .function x=-1
+	.if x == -1 ; acc
+	eor #$ff
+	add #1
+	.else ; abs/zp
+	lda x
+	eor #$ff
+	sta x
+	inc x
+	.fi
+	.endf
+	
 ; 16-bit expansions
 mwa	.function s, d
 	mva lo(s), d

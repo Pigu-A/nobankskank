@@ -38,6 +38,42 @@ chrsrc2 = *-1
 	inc chrsrc2
 	dey
 	bne mvchrloop
+	
+loadsinetable
+	; fill SineTable with the data in sine_unmoved
+	; sine_unmoved contains only the first π/2 region
+	; but due to how sine function works it's possible to expand it to the full 2π range
+	ldx #0
+	ldy #64
+-	lda sine_unmoved, x
+	sta SineTable, x
+	sta SineTable+64, y
+	neg
+	sta SineTable+128, x
+	sta SineTable+192, y
+	inx
+	dey
+	bne -
+	; these two addresses are not filled by the above loop
+	mva #255, SineTable+64
+	mva #0, SineTable+192
+
+loadqstable
+	; fill QSTableLo+Hi with x**2/4
+	; this is used for fast 8-bit*8-bit unsigned multiplication
+	; x**2 = 1+3+5+...+(x*2-1)
+	mva #$c0, zTMP3 ; -0.25
+	ldx #$ff
+	stx zTMP4
+	stx zTMP5
+	mva #$40, zTMP0 ; 0.25
+	inx
+	stx zTMP1
+	stx zTMP2
+	jsr loadqstable_fill
+	inc loadqstable_fill.lo
+	inc loadqstable_fill.hi
+	jsr loadqstable_fill
 
 initcharmap	
 	; try getting the current charmap and change display mode
@@ -127,6 +163,33 @@ _dst2 = *-1
 	cli
 -	jmp -
 
+loadqstable_fill .block
+	lda zTMP0
+	add zTMP3
+	sta zTMP0
+	lda	zTMP1
+	adc zTMP4
+	sta zTMP1
+	sta QSTableLo,x
+lo = *-1
+	lda zTMP2
+	adc zTMP5
+	sta zTMP2
+	sta QSTableHi,x
+hi = *-1
+	lda #$80 ; 0.5
+	adc zTMP3 ; last add is guaranteed to have carry cleared
+	sta zTMP3
+	bcc +
+	inc zTMP4
+	bne +
+	inc zTMP5
++	inx
+	bne loadqstable_fill
+	rts
+	.bend
+	
+
 expand
 	.rept 4
 	asl zTMP0
@@ -169,6 +232,15 @@ vbk
 +	jsr updateMusic
 dummy
 	rti
+
+sine_unmoved .block
+	; sin((x*2π/256)+1)*128
+_x := 0
+	.rept 64
+	.byte (sin(rad(_x*360.0/256.0))+1.0)*128
+_x := _x + 1
+	.next
+	.bend
 
 botbTex	.binary "botb.4x8.1bpp"
 
