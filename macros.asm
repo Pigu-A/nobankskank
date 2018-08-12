@@ -53,7 +53,23 @@ neg .function x=-1
 	inc x
 	.fi
 	.endf
-	
+
+pusha .function
+	pha
+	txa
+	pha
+	tya
+	pha
+	.endf
+
+popa .function
+	pla
+	tay
+	pla
+	tax
+	pla
+	.endf
+
 ; 16-bit expansions
 mwa	.function s, d
 	mva lo(s), d
