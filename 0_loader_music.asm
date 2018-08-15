@@ -63,4 +63,4 @@ runDemo_
 	tax
 	jmp -
 	
-	.cerror * > compressedPartAddresses, "Music data too large and goes over compressedPartAddresses by ", * - compressedPartAddresses, " bytes"
+	.cerror * > compressedPartAddresses, format("Music data is too large and goes over compressedPartAddresses by %d bytes", * - compressedPartAddresses)

@@ -3,41 +3,56 @@
 
 wCHBAS  = $2f4 ; rCHBASE is write-only, so we have to bother os memory again...
 wSDLSTL = $230 ; this too
+charset = $e000
 
 *	= partEntry
 	; region check
-	lda #$ff
-	sta zNTSCcnt
-	lda #$e
-	bit rPAL
-	beq +
-	inc zNTSCcnt
-+	
+	; lda #$ff
+	; sta zNTSCcnt
+	; lda #$e
+	; bit rPAL
+	; beq +
+	; inc zNTSCcnt
+; +	
 	; move char rom into ram
-	mva wCHBAS, chrsrc
-	sta chrsrc2
+mvchr
+	mva wCHBAS, _src
 	ldx #0
 	ldy #4
-mvchrloop
+_loop
 	mva #3, rPORTB
-	lda $ff00, x
-chrsrc = *-1
+	lda $ffff, x
+_src = *-1
 	sta scratch, x
-	dex
-	bne mvchrloop
+	inx
+	bne _loop
 	lda #124 ; wait until out of screen
 -	cmp rVCOUNT
 	bne -
 	mva #2, rPORTB
 -	lda scratch, x
-	sta $ff00, x
-chrsrc2 = *-1
-	dex
+	sta charset, x
+_dst = *-1
+	inx
 	bne -
-	inc chrsrc
-	inc chrsrc2
+	inc _src
+	inc _dst
 	dey
-	bne mvchrloop
+	bne _loop
+	mva #<charset, rCHBASE
+	; make a copy to charset+$400 too for double buffering
+	; ldx #0
+	ldy #4
+-	lda charset, x
+_src2 = *-1
+	sta charset+$400, x
+_dst2 = *-1
+	inx
+	bne -
+	inc _src2
+	inc _dst2
+	dey
+	bne -
 	
 loadsinetable
 	; fill SineTable with the data in sine_unmoved
@@ -123,37 +138,52 @@ _dst = *-2
 	cpx #100
 	bne -
 	
+unpackTex
+texArea = $f000 ; must be page-aligned
+texAddrLo = GVarsZPBegin-84
+texAddrHi = texAddrLo+32
+	lda #0
+	ldx #32
+	ldy #>(texArea+$800)
+-	sub #64
+	sta texAddrLo-1,x
+	bcs +
+	dey
++	sty texAddrHi-1,x
+	dex
+	bne -
+	
 putlogobitmap
-	; TODO transition in effect of this and has it drawn as rotozoomer pixel instead
-	ldx wCHBAS
-	inx
-	inx ; last 64 tiles
-	stx _dst
-	stx _dst2
-	ldx #0
-	ldy #0
--	lda botbTex, x
-	sta zTMP0
-	jsr expand
-	sta $ff00, y
-_dst = *-1
-	jsr expand
-	sta $ff40, y
-_dst2 = *-1
-	iny
-	inx
-	beq + ; done
-	txa
-	and #$3f ; 8 tiles yet?
-	bne -
-	tya
-	add #64
-	tay
-	bne -
-	inc _dst
-	inc _dst2
-	jmp -
-+
+	; o-------------u
+	; |     Ax,y
+	; |      ^
+	; |     / \<-----view
+	; |Cx,y<   >Bx,y
+	; |     \ /
+	; |      v
+	; v          texture
+Ay  = GVarsZPBegin-20 ; starting texture pos
+Ax  = Ay+2
+By  = Ay+4 ; texture pos to advance each view x change
+Bx  = Ay+6
+Cy  = Ay+8 ; texture pos to advance each view y change
+Cx  = Ay+10
+tt  = Ay+12 ; temp texture pointers
+txy = zARG2
+txx = zARG3
+tyy = zTMP0 ; temp texture positions 
+tyx = zTMP2
+tyt = zTMP4
+by  = zTMP6 ; current charmap pos
+bx  = zTMP7 ; 
+	mwa #0, Ax
+	mwa #0, Ay
+	mwa #$100, Bx
+	mwa #0, By
+	mwa #0, Cx
+	mwa #$100, Cy
+	jsr setRotoRes
+
 	mwa #vbk, rNMI
 	mwa #dummy, rRESET
 	mwa #dummy, rIRQ
@@ -161,7 +191,168 @@ _dst2 = *-1
 	mva #0, rIRQEN
 	mva #$40, rNMIEN ; vblank
 	cli
--	jmp -
+
+placeroto
+	; now time to draw rotozoomer
+	lda Ax
+	sta txx
+	sta tyx
+	tay
+	lda Ax+1
+	sta txx+1
+	sta tyx+1
+	tax
+	lda Ay
+	sta txy
+	sta tyy
+	lda Ay+1
+	sta txy+1
+	sta tyy+1
+	lda #<charset
+rotoBaseLo = *-1
+	sta rotoBaseX
+	lda #>(charset+$200)
+rotoDestHi = *-1
+	eor 4 ; flip the page
+	sta rotoBaseX+1
+	sta rotoDestHi
+	; wait for vblank to properly display the finished page
+	sta rNMIRES
+-	bit rNMIST
+	bvc -
+	lda #8
+rotoWidth = *-1
+	sta bx
+	mva #0, by
+	clc
+	
+_loop
+	lda texAddrHi,x ; 4
+	sta tt+1 ; 3
+	lda tyy+1 ; 3
+	adc texAddrLo,x ; 4
+	sta tt ; 3
+_x := 2
+	.rept 3
+	tya ; 2
+	add Bx ; 5
+	tay ; 2
+	txa ; 2
+	adc Bx+1 ; 3
+	and #31 ; 2
+	tax ; 2
+	lda texAddrHi,x ; 4
+	sta tt+_x+1 ; 3
+	.if _x == 2
+	lda tyy ; 3
+	adc By ; 3
+	sta tyt ; 3
+	lda tyy+1 ; 3
+	.else
+	lda tyt
+	adc By
+	sta tyt
+	lda tyt+1
+	.fi
+	adc By+1 ; 3
+	and #63 ; 2
+	sta tyt+1 ; 3
+	adc texAddrLo,x ; 4
+	sta tt+_x ; 3
+_x := _x + 2
+	.next ; 52*3 = 156
+	ldy #0 ; 2
+	lda (tt),y ; 5
+	asl a ; 2
+	asl a ; 2
+	eor (tt+2),y ; 5
+	asl a ; 2
+	asl a ; 2
+	eor (tt+4),y ; 5
+	asl a ; 2
+	asl a ; 2
+	eor (tt+6),y ; 5
+	ldy by ; 3
+	sta $ffff,y ; 5
+rotoBaseX = *-2
+	iny ; 2
+	cpy #64 ; 2
+rotoHeight = *-1
+	.page
+	beq + ; 2
+	sty by ; 3
+	lda tyx ; 3
+	adc Cx ; 3
+	sta tyx ; 3
+	tay ; 2
+	lda tyx+1 ; 3
+	adc Cx+1 ; 3
+	and #31 ; 2
+	sta tyx+1 ; 3	
+	tax ; 2
+	lda tyy ; 3
+	adc Cy ; 3
+	sta tyy ; 3
+	lda tyy+1 ; 3
+	adc Cy+1 ; 3
+	and #63 ; 2
+	sta tyy+1 ; 3
+	jmp _loop ; 3
+	           ; = 271
+	; advance to next column
++	dec bx
+	.endp
+	beq ++ ; finished
+	; multiply Bx,y by 4 since we are skipping 4 pixels
+	lda Bx+1
+	sta _bx4hi
+	lda Bx
+	asl a
+	rol _bx4hi
+	asl a
+	rol _bx4hi
+	adc txx
+	sta txx
+	sta tyx
+	tay
+	lda txx+1
+	adc #0
+_bx4hi = *-1
+	and #31
+	sta txx+1
+	sta tyx+1
+	tax
+	lda Bx+1
+	sta _bx4hi
+	lda Bx
+	asl a
+	rol _by4hi
+	asl a
+	rol _by4hi
+	adc txy
+	sta txy
+	sta tyy
+	lda txy+1
+	adc #0
+_by4hi = *-1
+	and #63
+	sta txy+1
+	sta tyy+1
+	lda rotoBaseX
+	adc rotoHeight
+	sta rotoBaseX
+	bcc +
+	inc rotoBaseX+1
++	jmp _loop
+	
+	; TODO: properly animate this
++	
+-	jmp placeroto
+
+setRotoRes
+rotoBaseXListLo = scratch
+rotoBaseXListHi = scratch+128
+	
 
 loadqstable_fill .block
 	lda zTMP0
@@ -222,14 +413,18 @@ src = *-2
 	.bend
 
 vbk
-	lda zNTSCcnt
-	bmi ++ ; PAL
-	bne +
-	mva #5, zNTSCcnt
-	rti
+	pusha
+	; lda zNTSCcnt
+	; bmi ++ ; PAL
+	; bne +
+	; mva #5, zNTSCcnt
+	; jmp _popregs
 
-+	dec zNTSCcnt
+; +	dec zNTSCcnt
 +	jsr updateMusic
+
+_popregs
+	popa
 dummy
 	rti
 
@@ -241,8 +436,6 @@ _x := 0
 _x := _x + 1
 	.next
 	.bend
-
-botbTex	.binary "botb.4x8.1bpp"
 
 botbFrame
 	.enc "a8screen"
@@ -267,5 +460,8 @@ addr	.word ?
 	.byte $02
 	.next
 	.bend
+
+	.align $100
+botbTex	.binary "gfx/botb.4x8.1bpp"
 
 scratch .fill $100

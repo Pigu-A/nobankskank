@@ -1,4 +1,15 @@
-import argparse, math, wave, random, hufenc
+import argparse, math, wave, random
+
+class HuffTree:
+	def __init__(self,a,b,c):
+		self.val = a
+		self.left = b
+		self.right = c
+
+class HuffLeaf:
+	def __init__(self,a,b):
+		self.val = a
+		self.id = b
 
 def readsamp(src,pos,size,chs): # returns a value between -0.5 and 0.5
 	t = 0
@@ -23,7 +34,37 @@ def cuinterpo(s,n):
 	t2 = math.pow(t1,2)
 	t3 = math.pow(t1,3)
 	return (2*t3-3*t2+1)*p0+(t3-2*t2+t1)*m0+(-2*t3+3*t2)*p1+(t3-t2)*m1
-	
+
+def buildcodes(freq):
+	# build huffman code list from frequencies data
+	# returns a list of sorted tuples consisting of code length, symbol and binary string
+	qu = []
+	for i in freq.keys(): qu.append(HuffLeaf(freq[i],i))
+	while len(qu) > 1:
+		qu = sorted(qu,key=lambda x: x.val)
+		le = qu.pop(0)
+		ri = qu.pop(0)
+		qu.append(HuffTree(le.val+ri.val,le,ri))
+	# walk the resulting tree to get code lengths
+	t = []
+	qu[0].val = 0
+	while len(qu) > 0:
+		i = qu.pop(0)
+		v = i.val+1
+		if type(i) is HuffLeaf: t.append((i.val,i.id))
+		else:
+			i.left.val = v
+			i.right.val = v
+			qu.append(i.left)
+			qu.append(i.right)
+	# generate canonical binary string
+	v = 0
+	t = sorted(t)
+	for i in range(len(t)):
+		t[i] += (("{:0"+str(t[i][0])+"b}").format(v),)
+		if i < len(t)-1: v = (v+1)<<(t[i+1][0]-t[i][0])
+	return t
+
 def wavtoded(fd,ra,ch,wi,vol=2.0,r15=None):
 	fdd = []
 	fdl = []
@@ -61,7 +102,7 @@ def wavtoded(fd,ra,ch,wi,vol=2.0,r15=None):
 	
 	# tree writing
 	code = {}
-	for i in hufenc.buildcodes(freq): code[i[1]] = i[2]
+	for i in buildcodes(freq): code[i[1]] = i[2]
 	ls = bytearray(len(fdl).to_bytes(2,"little",signed=False))
 	for i in range(16): ls.append(len(code.get(i,"")))
 

@@ -28,6 +28,9 @@ CIOV    = $e456
 	lda zRAMTOP
 	cmp #$c0 ; value when booted in DOS with BASIC disabled and cart removed
 	bcc removeCart
+	lda rPAL
+	and #$e ; region check
+	bne ntscSystem
 	pla
 	sta rPORTB ; resore os rom for a while so blank charset won't flash while decompressing
 	; move decompress routine
@@ -66,6 +69,11 @@ removeCart
 	mva #<size(removeCartText), wICBL
 	jmp putChar
 	
+ntscSystem
+	mwa #ntscSystemText, wICBA
+	mva #<size(ntscSystemText), wICBL
+	jmp putChar
+	
 putChar
 	mva #0, wICBL+1
 	mva #$0b, wICCMD ; put characters
@@ -79,9 +87,10 @@ putChar
 	.enc "atascii"
 notEnoughRamText .text "Whoops! This demo needs 64k XL to run!"
 removeCartText   .text "BOTB STRONG REMOVE CARTRIDGES\n"
+ntscSystemText	.text "This release doesn't support NTSC yet!"
 
 decompress_unmoved	.logical decompress
-	.include "65pkmlz.asm"
+	.include "decomp.asm"
 	.here
 
 cpa_unmoved	.logical compressedPartAddresses

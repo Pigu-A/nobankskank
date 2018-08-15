@@ -1,3 +1,4 @@
+; LZ decompressing routine
 ; by Pigu, converted from Pokemon Crystal decompress code
 
 LZ_END = #$ff ; Compressed data is terminated with $ff.
@@ -407,4 +408,150 @@ updatedst
 	inc dst+1
 +	ldy #0
 	jmp main
-.bend
+	.bend
+	
+; DED decoding routine
+; DED format is fixed to 4-bit samples right now and will be ORed with $10 for direct write to AUDCx
+; [[decodedlen]] [lenbits]..*16 [bitstream]...
+; decodes data from (zARG0) to (zARG1)
+
+datacountLo	.byte ?
+datacountHi	.byte ?
+
+deDED_	.block
+	; get len from (zARG0) to datacount and adjust for two-level loop
+	ldy #1
+	lda (zARG0),y ; lenHi
+	tax
+	dey
+	lda (zARG0),y ; lenLo
+	beq +
+	inx
++	sta datacountLo
+	stx datacountHi
+	lda #2
+	sta zTMP3 ; internal nodes left for this level
+	add zARG0
+	sta _lenbits
+	lda zARG0+1
+	adc #0
+	sta _lenbits+1
+	lda #1
+	sta zTMP1 ; current level
+	mva #0, zTMP2 ; nodeTable position
+	sta zTMP5 ; internal nodes count
+_nodeTableLoop
+	ldy #0
+-	lda $ffff,y
+_lenbits = *-2
+	cmp _maxlen
+	bcc +
+	sta _maxlen
++	cmp zTMP1
+	bne +
+	; add leaf node to nodeTable
+	tya
+	clc
+	jsr addNode
+	dec zTMP3
++	iny
+	cpy #16
+	bne -
+	lda zTMP3
+	beq +
+	sta zTMP4
+	asl a ; x2
+	sta zTMP3
+	; add internal node to nodeTable
+-	jsr addInternal
+	dec zTMP4
+	bne -
++	lda zTMP1
+	inc zTMP1
+	cmp #1
+_maxlen = *-1
+	bne _nodeTableLoop
+	addw #18, zARG0, _bitstream
+	
+	; time to decode the bitstream
+	mva #1, zTMP0 ; force getting the first byte for the first time
+	mva #8, zTMP2 ; output value
+	ldy #0 ; destination index
+_loop
+	ldx #0
+_loop2
+	dec zTMP0
+	bne ++
+	; get the next byte
+	lda $ffff
+_bitstream = *-2
+	sta zTMP1
+	inc _bitstream
+	bne +
+	inc _bitstream+1
++	mva #8, zTMP0
++	asl zTMP1
+	lda nodeTableA,x
+	bcs _1
+_0
+	and #2
+	beq +
+	lda nodeTable0,x
+	tax
+	bcc _loop2
++	lda nodeTable0,x
+	rts
+_1
+	and #1
+	beq +
+	lda nodeTable1,x
+	tax
+	bcs _loop2
++	lda nodeTable1,x
+	add zTMP2 ; apply delta
+	and #15
+	sta zTMP2
+	ora #$10 ; force output
+	sta (zARG1),y
+	iny
+	bne +
+	inc zARG1+1
++	dec	datacountLo
+	bne _loop
+	dec datacountHi
+	bne _loop
+	rts
+	
+	; add a node then increase nodeTable position
+addInternal
+	inc zTMP5
+	lda zTMP5
+	sec
+addNode
+	; a = value/destination
+	; carry = end/jump
+	php
+	pha
+	lda zTMP2
+	inc zTMP2
+	lsr a
+	tax
+	pla
+	bcs +
+	sta nodeTable0,x
+	bcc ++
++	sta nodeTable1,x
++	plp
+	rol nodeTableA,x
+	rts
+	
+	.align 16
+; 16 nodes max right now, 4-bit wave shouldn't exceed this
+nodeTable0	.fill 16
+nodeTable1	.fill 16
+nodeTableA	.fill 16
+	.bend
+	
+	.cerror (deDED-decompress) != (deDED_-decompress_), format("decompress and deDED subroutine distance in gvars.asm (%d) and decomp.asm (%d) mismatch", deDED-decompress, deDED_-decompress_)
+	.cerror * > runDemo, format("decomp code is too large and goes over runDemo by %d bytes", * - runDemo)
+	
