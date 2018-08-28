@@ -181,6 +181,10 @@ wordloopadj	.function a
 	.fi
 	.endf b
 	
+; return true if a's data goes over the page boundary
+pagecross .function a
+	.endf <(a+size(a)) != <a
+	
 ; get tilemap offset from 20 chars text mode
 coord20	.function x, y, o=0
 	.endf y * 20 + x + o
