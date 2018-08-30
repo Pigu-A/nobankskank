@@ -19,11 +19,13 @@ start
 	sta SDLSTL
 	lda >#dlist
 	sta SDLSTL+1
-	mva #$0e, COLOR
+	mva #$0f, COLOR
 	sta COLOR+1
-	mva #$0c, COLOR+2
+	sta COLOR+2
 	sta COLOR+3
-	mva #$1e, COLOR+4
+	mva #$20, COLOR+5
+	mva #$9a, COLOR+6
+	mva #12, rHSCROL
 	mva >#(player0-$200), rPMBASE
 	mva #$01, GPRIOR ; all players above pf
 	mva #$2a, SDMCTL ; enable player and dlist dma, normal pf, double line player
@@ -82,9 +84,16 @@ _sk
 	
 loop
 ; battleOf logo
-	lda #64 ; wait until it's not upper part
+	lda #63 ; wait until it's not upper part
 -	cmp rVCOUNT
 	bne -
+	sta rWSYNC
+	sta rWSYNC
+	mva #$0f, rCOLBK ; draw a white line
+	mva #$70, rCOLPF0
+	sta rWSYNC
+	sta rWSYNC
+	mva #$00, rCOLBK
 	mwa #dli1, VDSLST ; load text scroller dli
 	lda #$10
 logoh = *-1
@@ -268,7 +277,7 @@ _done
 	sub zTMP3
 	beq +
 	jsr battleOf_blank
-+	lda #$81 ; jump + int
++	lda #$01 ; jump
 	sta dlist_battleOf,y
 	iny
 	lda <#dlist_grid
@@ -444,6 +453,9 @@ battleOf_blank
 
 dliB
 	sta nmiA
+	lda rVCOUNT
+	cmp #64
+	bcs skipdli ; don't do the last line
 	lda logocol+1
 dliB_idx = *-2
 	inc dliB_idx
@@ -543,11 +555,24 @@ _x := _x + 1
 text	.binary "scroller/data.bin"
 font	.binary "scroller/font_gen.1bpp"
 battleOf	.binary "gfx/battleOf.1bpp"
+	.align $100
+grid	.byte 0 ; padding to make the first pixel appear for hscrol
+	.binary "gfx/grid.2bpp"
 
 	.align $800
 dlist_grid
 	.byte $00
-	.fill 55, $90 ; blank lines for now
+_x := 0
+	.rept 47
+	.byte $dd ; lms + dli + hscrol 
+	.word grid+_x
+_x := _x + 64
+	.next
+	.rept 8
+	.byte $dd
+	.word grid+_x
+_x := _x - 64
+	.next
 	.byte $41 ; jvb
 	.word dlist
 dlist
