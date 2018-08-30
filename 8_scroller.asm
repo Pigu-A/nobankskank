@@ -8,7 +8,7 @@ GPRIOR = $26f
 COLOR  = $2c0
 
 SCROLL_SPEED = 3 ; please don't exceed 16
-TEXT_Y = 64 ; starting y position of text
+TEXT_Y = 65 ; starting y position of text
 
 *	= $02e0
 	.word start
@@ -61,19 +61,19 @@ _sk
 	bne -
 	
 	; unpack bounceLUT
-	lda #116 ; f(0)
+	lda #111 ; f(0)
 	ldx #0
 -	sub bounceLUT,x ; apply delta
 	sta bounceLUT,x
 	inx
-	cpx #54
+	cpx #53
 	bne -
-	ldy #52 ; loop back
+	ldy #51 ; loop back
 -	lda bounceLUT,y
 	sta bounceLUT,x
 	inx
 	dey
-	cpy #9
+	cpy #8
 	bne -
 	
 	mwa #wordloopadj(size(text)), chrc
@@ -81,51 +81,192 @@ _sk
 	mva #$40, rNMIEN
 	
 loop
-; balleOf logo
-	lda #63 ; wait until it's not upper part
+; battleOf logo
+	lda #64 ; wait until it's not upper part
 -	cmp rVCOUNT
 	bne -
-	lda #$1e
+	mwa #dli1, VDSLST ; load text scroller dli
+	lda #$10
 logoh = *-1
 	add #$10
-	cmp #$fe
+	cmp #$f0
 	bne +
-	lda #$1e
+	lda #$10
 +	sta logoh
-	sta COLOR+4
-	lda #1
-logoy = *-1
-	add #4
-	cmp #97
+	sta logocol+3
+	adc #2
+	sta logocol+2
+	adc #4
+	sta logocol+1
+	adc #8
+	sta logocol
+	
+	; init layers
+	ldx #4
+-	lda logoi-1,x
+	cmp #96
+	bcc + ; not delay
+	inc logoi-1,x
+	lda #-1
+	sta logobeg-1,x
+	bmi _skip
++	add #4
+	cmp #96
 	bcc +
-	lda #9
-+	sta logoy
-	tax
-	lda bounceLUT,x
-	sta zTMP3 ; zTMP0-2 are currently used by an interrupt
-	ldy #0
-	jsr battleOf_blank
-	lda #$4c ; lms
-	sta dlist_battleOf,y
-	iny
-	lda <#battleOf
-	sta dlist_battleOf,y
-	iny
-	lda >#battleOf
-	sta dlist_battleOf,y
-	iny
-	lda #111
-	sub zTMP3
-	sta zTMP3 ; actual lines left
-	lda #$0c
-	ldx #31 ; battleOf height - 1
--	sta dlist_battleOf,y
-	iny
-	dec zTMP3
-	beq +
+	lda #8
++	sta logoi-1,x
+	tay
+	lda bounceLUT,y
+	sta logopos-1,x
+	sta logobeg-1,x
+	add #32
+	cmp #112
+	bcc +
+	lda #112
++	sta logoend-1,x
+_skip
 	dex
 	bne -
+	; flatten layers
+	ldx #2 ; upper
+	ldy #3 ; lower
+-	lda logobeg,x
+	bmi _skip3 ; hidden
+-	lda logobeg,y
+	bmi _skip2 ; hidden
+	cmp logobeg,x
+	bcc +
+	cmp logoend,x
+	bcs +
+	lda logoend,x
+	sta logobeg,y
++	lda logoend,y
+	cmp logoend,x
+	bcs _skip2
+	cmp logobeg,x
+	bcc _skip2
+	lda logobeg,x
+	sta logoend,y
+_skip2
+	iny
+	cpy #4
+	bne -
+_skip3
+	dex
+	txa
+	tay
+	iny
+	cpx #-1
+	bne --
+	; check for completely covered layer (end <= begin)
+	ldx #4
+-	lda logobeg-1,x
+	bmi + ; already hidden
+	cmp logoend-1,x
+	bcc +
+	lda #-1
+	sta logobeg-1,x
++	dex
+	bne -
+	; sort layers
+	; any completely covered layers will have begin pos of -1 (=255)
+	; and get moved to the very right
+	ldx #0
+	ldy #1
+-	lda logobeg,y
+	cmp logobeg,x
+	bcs + ; no swapping
+	sta zTMP3 ; zTMP0-2 are currently used by an interrupt
+	lda logopos,y
+	sta zTMP4
+	lda logoend,y
+	sta zTMP5
+	lda logocol,y
+	sta zTMP6
+	lda logobeg,x
+	sta logobeg,y
+	lda logopos,x
+	sta logopos,y
+	lda logoend,x
+	sta logoend,y
+	lda logocol,x
+	sta logocol,y
 	lda zTMP3
+	sta logobeg,x
+	lda zTMP4
+	sta logopos,x
+	lda zTMP5
+	sta logoend,x
+	lda zTMP6
+	sta logocol,x
++	iny
+	cpy #4
+	bne -
+	inx
+	txa
+	tay
+	iny
+	cpx #3
+	bne -
+	; generate dlist
+	mva #0, zTMP3
+	tax
+	tay
+-	lda logobeg,x
+	bmi _done ; covered layer found
+	sub zTMP3
+	beq +
+	stx zTMP3 ; back up x
+	jsr battleOf_blank
+	ldx zTMP3
++	lda #$4c ; lms
+	sta dlist_battleOf,y
+	iny
+	mva #0, zTMP4
+	lda logobeg,x
+	sbc logopos,x
+	beq +
+	; since the logo height is 32 lines, it's safe to omit
+	; the upper 2 bits for initial x5 multiplication
+	sta zTMP3
+	asl a ; x2
+	asl a ; x4
+	adc zTMP3 ; x5
+	asl a ; x10
+	rol zTMP4
+	asl a ; x20
+	rol zTMP4
++	add <#battleOf
+	sta dlist_battleOf,y
+	iny
+	lda zTMP4
+	adc >#battleOf
+	sta dlist_battleOf,y
+	iny
+	lda logoend,x
+	sta zTMP3
+	sub logobeg,x
+	sbc #1 ; lms already drawn one line
+	bne +
+	; special case: only one line is drawn
+	lda #$cc ; lms + dli
+	sta dlist_battleOf-3,y
+	bne ++
++	sta zTMP4
+	lda #$0c
+-	sta dlist_battleOf,y
+	iny
+	dec zTMP4
+	bne -
+	lda #$8c ; put dli on the last line
+	sta dlist_battleOf-1,y
++	inx
+	cpx #4
+	bne --
+_done
+	lda #112 ; logo area height
+	sub zTMP3
+	beq +
 	jsr battleOf_blank
 +	lda #$81 ; jump + int
 	sta dlist_battleOf,y
@@ -140,11 +281,9 @@ logoy = *-1
 	lda #120 ; wait until out of screen
 -	cmp rVCOUNT
 	bne -
-	; lda #1
-	; eor framecnt
-	; sta framecnt
-	; beq loop
-	mwa #dli1, VDSLST
+	mva logocol, COLOR+4
+	mva <#(logocol+1), dliB_idx
+	mwa #dliB, VDSLST ; load battleOf logo dli
 	mva <#rHPOSP0, pyrdst1
 	mva <#rHPOSP3, pyrdst2
 	mva #0,zTMP2
@@ -272,6 +411,13 @@ pyrdst = *-2
 	bne -
 	jmp loop
 	
+logoi	.byte 0, 256-3, 256-5, 256-8 ; also doubles as a delay
+logopos	.fill 4
+logobeg	.fill 4
+logoend	.fill 4
+	.page
+logocol	.fill 4
+	.endp
 chrx	.byte 0
 chry	.byte 9
 chrc	.word 0
@@ -295,6 +441,15 @@ battleOf_blank
 	sta dlist_battleOf,y
 	iny
 +	rts
+
+dliB
+	sta nmiA
+	lda logocol+1
+dliB_idx = *-2
+	inc dliB_idx
+	sta rWSYNC
+	sta rCOLPF0
+	jmp skipdli
 
 dli1
 	sta nmiA
@@ -361,11 +516,11 @@ dlistblankcodes
 	.byte $00, $10, $20, $30, $40, $50, $60 ; still faster than left shifting 4 times
 	
 bounceLUT	.block
-	; (53-(x/4))²*80/121 stored in a delta form instead to allow more compression
-	.byte 0, 5, 4, 4, 4, 4, 4, 4, 4, 3, 4, 4, 3, 3, 4, 3
-	.byte 3, 3, 3, 3, 2, 3, 3, 2, 3, 2, 2, 3, 2, 2, 2, 1
-	.byte 2, 2, 2, 1, 2, 1, 1, 1, 2, 1, 0, 1, 1, 1, 0, 1
-	.byte 0, 1, 0, 0, 0, 0
+	; (52-(x/4))²*80/121 stored in a delta form instead to allow more compression
+	.byte 0, 4, 4, 4, 4, 4, 4, 4, 3, 4, 4, 3, 3, 4, 3, 3
+	.byte 3, 3, 3, 2, 3, 3, 2, 3, 2, 2, 3, 2, 2, 2, 1, 2
+	.byte 2, 2, 1, 2, 1, 1, 1, 2, 1, 0, 1, 1, 1, 0, 1, 0
+	.byte 1, 0, 0, 0, 0
 	.bend
 
 chrxLUT_packed	.block
@@ -386,6 +541,7 @@ _x := _x + 1
 	.bend
 
 text	.binary "scroller/data.bin"
+font	.binary "scroller/font_gen.1bpp"
 battleOf	.binary "gfx/battleOf.1bpp"
 
 	.align $800
@@ -406,5 +562,4 @@ player2	.fill $80
 player3	.fill $80
 
 chrxLUT	.fill 256
-font	.binary "scroller/font_gen.1bpp"
 	
