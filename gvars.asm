@@ -48,6 +48,8 @@ partEntry   = $2000 ; every demo parts (except part 0) get decompressed here and
 xexStart    = partEntry ; entry point of this demo executable
 
 ; math tables
+	.weak
 QSTableLo  = $f800 ; 1024 bytes, for multiplication
 QSTableHi  = $fa00
 SineTable  = $fc00 ; 256 bytes
+	.endweak

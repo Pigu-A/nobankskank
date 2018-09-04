@@ -31,6 +31,36 @@ start
 	mva #$2a, SDMCTL ; enable player and dlist dma, normal pf, double line player
 	mva #$02, rGRACTL ; turn on player
 	
+	; fill QSTable and QSTable+256 with x²/256
+	; this is used for fast 8-bit*8-bit multiplication
+	; x² = 1+3+5+...+(x*2-1)
+	; in this case, since the grid has max scrolling range of 96 and xpos of 63
+	; x is of range [-96,159] instead of usual [0,255]
+	mva #-1, zTMP2
+	sta zTMP3
+	mva #1, zTMP0
+	mva #0, zTMP1
+	tax
+	tay
+-	addw zTMP2, zTMP0
+	sta QSTable,x
+	sta QSTable+256,x
+	cpy #-96
+	bcc + ; don't store if index y is below -96
+	sta QSTable,y
+	sta QSTable+256,y
++	lda zTMP2
+	add #2
+	sta zTMP2
+	bcc +
+	inc zTMP3
++	dey
+	inx
+	cpx #160
+	bne -
+	mva >#QSTable, zARG2+1
+	sta zARG3+1
+	
 	; the current function for character x position table is
 	; (x/128)³*32+x/2+124 for x = [-128,-127,..,128]
 	; since (x/128)³*32 always increase by only 0 and 1 for this range of x
@@ -78,11 +108,70 @@ _sk
 	cpy #8
 	bne -
 	
+	; build dlist
+	mva #$70, dlist ; 8 blank lines
+	mva #0, dlist_grid ; 1 blank line
+	tax
+	mva #$41, dlist_grid+1+55*3 ; jvb
+	mwa #dlist, dlist_grid+1+55*3+1
+	lda #$cd ; lms + dli
+-	sta dlist_grid+1,x
+	inx
+	inx
+	inx
+	cpx #55*3
+	bne -
+	
+	; generate scrolled copies of grid
+	ldy #0
+_copyloop
+	lda gridaddrs,y
+	add >#(size(grid0))
+	sta _src+1
+	lda gridaddrs+1,y
+	add >#(size(grid0))
+	sta _dst+1
+	sta _dst2+1
+	sty zTMP0
+	ldx <#size(grid0)
+	ldy >#size(grid0)
+	clc
+-	txa
+	bne +
+	dec _src+1
+	dec _dst+1
+	dey
+	bmi ++
++	dex
+	lda grid0,x
+_src = *-2
+	rol a
+	sta grid1,x
+_dst = *-2
+	jmp -
+	; shift left by another 1 bit
++	ldx <#size(grid0)
+	ldy >#size(grid0)
+	clc
+-	txa
+	bne +
+	dec _dst2+1
+	dey
+	bmi ++
++	dex
+	rol grid1,x
+_dst2 = *-2
+	jmp -
++	ldy zTMP0
+	iny
+	cpy #4
+	bne _copyloop
+	
 	mwa #wordloopadj(size(text)), chrc
-	mwa VDSLST, olddli
 	mva #$40, rNMIEN
 	
 loop
+	inc framecnt
 ; battleOf logo
 	lda #63 ; wait until it's not upper part
 -	cmp rVCOUNT
@@ -297,7 +386,6 @@ _done
 	mva <#rHPOSP3, pyrdst2
 	mva #0,zTMP2
 	mva #$c0, rNMIEN
-	inc framecnt
 	lda framecnt
 	and #63
 	tax
@@ -305,7 +393,7 @@ _done
 	ldx chry ; save for text shifting
 	sta chry
 	sta zTMP1
-	add #TEXT_Y
+	add #TEXT_Y+1
 	sta pyrY
 	lda chrx
 	sub #SCROLL_SPEED
@@ -367,7 +455,7 @@ placetext
 	lda txtcnt
 	sub #SCROLL_SPEED
 	sta txtcnt
-	bcs loop
+	bcs updategrid
 	adc #16
 	sta txtcnt
 	mva >#player0, pyrdst+1
@@ -418,7 +506,94 @@ pyrdst = *-2
 	iny
 	dec zTMP5
 	bne -
+	
+updategrid
+	;      x
+	;     -|-
+	;    =====  z
+	; y /--|--\ |dz
+	;  ======== v
+	; -----|----
+	lda #0
+gridx = *-1
+	add #3 ; griddx
+	and #63
+	sta gridx
+	lda #0
+gridy = *-1
+	add #7
+	sta gridy
+	sta zTMP7
+	cmp #30
+	lda #$80
+gridzLo = *-1
+	sta zTMP3
+	ldx #0
+	ldy #0
+gridzHi = *-1
+	sty zTMP4
+	bcc _horline
+-	sty zTMP5
+	iny
+	tya
+	asl a ; grid width is 2(x+1) the current line
+	ldy gridx
+	; calculate x*y/64 using QSTable
+	sta zARG2
+	neg
+	sta zARG3
+	lda (zARG2),y
+	sub (zARG3),y
+	sta zTMP6
+	; get the correct shifted gfx pointer
+	lsr zTMP5
+	ror a
+	lsr zTMP5
+	ror a
+	sta dlist_grid+2,x
+	lda zTMP6
+	and #3
+	tay
+	lda gridaddrs,y
+	add zTMP5
+_done
+	inx
+	sta dlist_grid+2,x
+	inx
+	inx ; skip lms command
+	; add dz to z and dy to y
+	lda zTMP3
+	adc #48*256/55
+griddz = *-1
+	sta zTMP3
+	bcc +
+	inc zTMP4
++	ldy zTMP4
+	lda zTMP7
+	bcc +
+	sbc zTMP4 ; this should be enough to fake foreshortening
+	add #48
+	clc
++	adc gridysteps,y
+	cmp zTMP7 ; did it overflow (after is less than before)
+	sta zTMP7
+	bcc +
+	cmp #30 ; line thickness
+	bcc +
+	cpx #55*3
+	bne -
 	jmp loop
++	cpx #55*3
+	bne _horline
+	jmp loop
+_horline
+	; force line 0 xpos 0 (horizontal line)
+	lda <#grid0
+	sta dlist_grid+2,x
+	lda >#grid0
+	clc
+	gcc _done
+	
 	
 logoi	.byte 0, 256-3, 256-5, 256-8 ; also doubles as a delay
 logopos	.fill 4
@@ -466,8 +641,8 @@ dliB_idx = *-2
 dli1
 	sta nmiA
 	dec zTMP1
-	bne skipdli
-	mva #4,zTMP1
+	bpl skipdli
+	mva #3,zTMP1
 	mwa #dli2, VDSLST
 	stx nmiX
 	ldx zTMP0
@@ -478,8 +653,8 @@ dli1
 dli2
 	sta nmiA
 	dec zTMP1
-	bne skipdli
-	mva #4,zTMP1
+	bpl skipdli
+	mva #3,zTMP1
 	stx nmiX
 	lda pyrdst1
 	eor #1
@@ -508,13 +683,12 @@ skipdli_x
 	ldx nmiX
 skipdli
 	lda nmiA
-	jmp *
-olddli = *-2
+	rti
 
 dli3
 	sta nmiA
 	dec zTMP1
-	bne skipdli
+	bpl skipdli
 	mva #$40, rNMIEN ; no more tiles below
 	stx nmiX
 	lda zTMP0
@@ -526,6 +700,9 @@ dli3
 	
 dlistblankcodes
 	.byte $00, $10, $20, $30, $40, $50, $60 ; still faster than left shifting 4 times
+		
+gridaddrs
+	.byte >grid0, >grid1, >grid2, >grid3
 	
 bounceLUT	.block
 	; (52-(x/4))²*80/121 stored in a delta form instead to allow more compression
@@ -547,7 +724,16 @@ chrxLUT_packed	.block
 chryLUT .block
 _x := 0
 	.rept 64
-	.byte (sin(rad(_x*360.0/64.0))+1.0)*8+1
+	.byte (sin(rad(_x*360.0/64.0))+1.0)*8
+_x := _x + 1
+	.next
+	.bend
+	
+gridysteps	.block
+	.byte 255
+_x := 2
+	.rept 47
+	.byte 256/_x+0.5
 _x := _x + 1
 	.next
 	.bend
@@ -556,35 +742,22 @@ text	.binary "scroller/data.bin"
 font	.binary "scroller/font_gen.1bpp"
 battleOf	.binary "gfx/battleOf.1bpp"
 	.align $100
-grid	.byte 0 ; padding to make the first pixel appear for hscrol
-	.binary "gfx/grid.2bpp"
+grid0	.binary "gfx/grid.2bpp"
+grid1	.fill size(grid0)
+grid2	.fill size(grid0)
+grid3	.fill size(grid0)
+
+chrxLUT	.fill 256
+QSTable	.fill 512
 
 	.align $800
-dlist_grid
-	.byte $00
-_x := 0
-	.rept 47
-	.byte $dd ; lms + dli + hscrol 
-	.word grid+_x
-_x := _x + 64
-	.next
-	.rept 8
-	.byte $dd
-	.word grid+_x
-_x := _x - 64
-	.next
-	.byte $41 ; jvb
-	.word dlist
-dlist
-	.byte $70 ; 8 blank lines
-dlist_battleOf
 	; this part is auto-generated
-	
+dlist_grid	.fill 1+55*3+3 ; 1 blank line + 55 display + jvb
+dlist	.fill 1 ; 8 blank lines
+dlist_battleOf
+
 	.align $200
 player0	.fill $80
 player1	.fill $80
 player2	.fill $80
 player3	.fill $80
-
-chrxLUT	.fill 256
-	
