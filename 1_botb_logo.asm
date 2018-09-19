@@ -1,9 +1,13 @@
 ; Part 1: BotB logo (and lots of stuff that will be used later by the other parts)
 	.include "gvars.asm"
 
-wCHBAS  = $2f4 ; rCHBASE is write-only, so we have to bother os memory again...
-wSDLSTL = $230 ; this too
-charset = $e000
+SDLSTL = $230
+COLOR = $2c0
+dlist = $bc20
+chardat = $bc40
+charset = $c000
+texArea = $d800 ; must be page-aligned
+os_char = $e000
 
 *	= partEntry
 	; region check
@@ -13,16 +17,15 @@ charset = $e000
 	; bit rPAL
 	; beq +
 	; inc zNTSCcnt
-; +	
+; +
 	; move char rom into ram
 mvchr
-	mva wCHBAS, _src
 	ldx #0
 	ldy #4
 _loop
 	mva #3, rPORTB
-	lda $ffff, x
-_src = *-1
+	lda os_char, x
+_src = *-2
 	sta scratch, x
 	inx
 	bne _loop
@@ -32,25 +35,26 @@ _src = *-1
 	mva #2, rPORTB
 -	lda scratch, x
 	sta charset, x
-_dst = *-1
+_dst = *-2
 	inx
 	bne -
-	inc _src
-	inc _dst
+	inc _src+1
+	inc _dst+1
 	dey
 	bne _loop
-	mva #<charset, rCHBASE
+	mva #>(charset+$400), curpage
+	sta rCHBASE
 	; make a copy to charset+$400 too for double buffering
 	; ldx #0
 	ldy #4
 -	lda charset, x
-_src2 = *-1
+_src2 = *-2
 	sta charset+$400, x
-_dst2 = *-1
+_dst2 = *-2
 	inx
 	bne -
-	inc _src2
-	inc _dst2
+	inc _src2+1
+	inc _dst2+1
 	dey
 	bne -
 	
@@ -70,88 +74,82 @@ loadsinetable
 	dey
 	bne -
 	; these two addresses are not filled by the above loop
-	mva #255, SineTable+64
-	mva #0, SineTable+192
+	mva #127, SineTable+64
+	mva #-128, SineTable+192
 
-loadqstable
+; loadqstable
 	; fill QSTableLo+Hi with x**2/4
 	; this is used for fast 8-bit*8-bit unsigned multiplication
 	; x**2 = 1+3+5+...+(x*2-1)
-	mva #$c0, zTMP3 ; -0.25
-	ldx #$ff
-	stx zTMP4
-	stx zTMP5
-	mva #$40, zTMP0 ; 0.25
-	inx
-	stx zTMP1
-	stx zTMP2
-	jsr loadqstable_fill
-	inc loadqstable_fill.lo
-	inc loadqstable_fill.hi
-	jsr loadqstable_fill
+	; mva #$c0, zTMP3 ; -0.25
+	; ldx #$ff
+	; stx zTMP4
+	; stx zTMP5
+	; mva #$40, zTMP0 ; 0.25
+	; inx
+	; stx zTMP1
+	; stx zTMP2
+	; jsr loadqstable_fill
+	; inc loadqstable_fill.lo
+	; inc loadqstable_fill.hi
+	; jsr loadqstable_fill
 
 initcharmap	
-	; try getting the current charmap and change display mode
-	; although many DOS run in 40x24 char mode, don't assume that all of them run in it
-	; zTMP0 = charmap address
-	mva wSDLSTL, zTMP0
-	sta zARG0
-	mva wSDLSTL+1, zTMP1
-	sta zARG0+1
-	ldy #0
--	lda (zTMP0), y
-	iny
-	tax
-	and #$0f
-	beq - ; blank lines
-	; I don't think someone is crazy enough to put jump before the first load memory scan in the display list 
-	txa
-	and #$40 ; has load memory scan?
-	beq -
-	lda (zTMP0), y ; got charmap address
-	sta botbDlist0.addr
-	iny
-	lda (zTMP0), y
-	sta botbDlist0.addr+1
-	mwa #botbDlist0, copydlist.src
+	; force 40x24 hires char mode with data at $bc40
+	; (where dos display data without cart would be)
 	ldy #size(botbDlist0)
-	jsr copydlist
+-	lda botbDlist0-1, y
+	sta dlist-1, y
+	dey
+	bne -
+	mwa #dlist, SDLSTL
+	mva #$ca, COLOR+5 ; default a8 palette
+	sta rCOLPF1
+	mva #$94, COLOR+6
+	sta rCOLPF2
 	
 putlogotiles
 	; time to put botb logo in the middle of the screen
-	addw #coord40(15,7), botbDlist0.addr, _dst
 	ldy #0
 	ldx #0
 -	lda botbFrame, x
-	sta $ffff, y
+	sta coord40(15,7,chardat), y
 _dst = *-2
 	iny
 	cpy #10
-	bne ++
-	lda _dst
-	add #40
-	sta _dst
-	bcc +
-	inc _dst+1
-+	ldy #0
+	bne +
+	addw #40, _dst
+	ldy #0
 +	inx
 	cpx #100
 	bne -
 	
 unpackTex
-texArea = $f000 ; must be page-aligned
-texAddrLo = GVarsZPBegin-84
-texAddrHi = texAddrLo+32
+	mva #$80, zTMP0
+	ldx #4
+-	ldy #0
+-	lda botbTex,y
+_src = *-2
+	and zTMP0
+	bne +
 	lda #0
-	ldx #32
-	ldy #>(texArea+$800)
--	sub #64
-	sta texAddrLo-1,x
-	bcs +
-	dey
-+	sty texAddrHi-1,x
-	dex
+	geq ++
++	lda #3
++	sta texArea,y
+_dst = *-2
+	iny
+	cpy #64
 	bne -
+	inc _dst+1
+	ldy #0
+	lsr zTMP0
+	bcc --
+	ror zTMP0
+	lda _src
+	add #64
+	sta _src
+	dex
+	bne --
 	
 putlogobitmap
 	; o-------------u
@@ -182,7 +180,6 @@ bx  = zTMP7 ;
 	mwa #0, By
 	mwa #0, Cx
 	mwa #$100, Cy
-	jsr setRotoRes
 
 	mwa #vbk, rNMI
 	mwa #dummy, rRESET
@@ -213,9 +210,13 @@ rotoBaseLo = *-1
 	sta rotoBaseX
 	lda #>(charset+$200)
 rotoDestHi = *-1
-	eor 4 ; flip the page
+	eor #4 ; flip the page
 	sta rotoBaseX+1
 	sta rotoDestHi
+	lda #0
+curpage = *-1
+	eor #4
+	sta curpage
 	; wait for vblank to properly display the finished page
 	sta rNMIRES
 -	bit rNMIST
@@ -224,43 +225,37 @@ rotoDestHi = *-1
 rotoWidth = *-1
 	sta bx
 	mva #0, by
-	clc
 	
 _loop
-	lda texAddrHi,x ; 4
+	txa ; 2
+	add #>texArea ; 4
 	sta tt+1 ; 3
 	lda tyy+1 ; 3
-	adc texAddrLo,x ; 4
 	sta tt ; 3
 _x := 2
 	.rept 3
 	tya ; 2
-	add Bx ; 5
+	adc Bx ; 3
 	tay ; 2
 	txa ; 2
 	adc Bx+1 ; 3
-	and #31 ; 2
 	tax ; 2
-	lda texAddrHi,x ; 4
+	and #31 ; 2
+	add #>texArea ; 4
 	sta tt+_x+1 ; 3
 	.if _x == 2
 	lda tyy ; 3
-	adc By ; 3
-	sta tyt ; 3
-	lda tyy+1 ; 3
 	.else
 	lda tyt
-	adc By
-	sta tyt
-	lda tyt+1
 	.fi
+	add By ; 5
+	sta tyt ; 3
+	lda tt+_x-2 ;3
 	adc By+1 ; 3
 	and #63 ; 2
-	sta tyt+1 ; 3
-	adc texAddrLo,x ; 4
 	sta tt+_x ; 3
 _x := _x + 2
-	.next ; 52*3 = 156
+	.next ; 45*3 = 135
 	ldy #0 ; 2
 	lda (tt),y ; 5
 	asl a ; 2
@@ -278,7 +273,6 @@ rotoBaseX = *-2
 	iny ; 2
 	cpy #64 ; 2
 rotoHeight = *-1
-	.page
 	beq + ; 2
 	sty by ; 3
 	lda tyx ; 3
@@ -291,18 +285,18 @@ rotoHeight = *-1
 	sta tyx+1 ; 3	
 	tax ; 2
 	lda tyy ; 3
-	adc Cy ; 3
+	add Cy ; 5
 	sta tyy ; 3
 	lda tyy+1 ; 3
 	adc Cy+1 ; 3
 	and #63 ; 2
 	sta tyy+1 ; 3
 	jmp _loop ; 3
-	           ; = 271
+	           ; = 250
 	; advance to next column
 +	dec bx
-	.endp
 	beq ++ ; finished
+	mva #0, by
 	; multiply Bx,y by 4 since we are skipping 4 pixels
 	lda Bx+1
 	sta _bx4hi
@@ -311,7 +305,7 @@ rotoHeight = *-1
 	rol _bx4hi
 	asl a
 	rol _bx4hi
-	adc txx
+	add txx
 	sta txx
 	sta tyx
 	tay
@@ -322,14 +316,14 @@ _bx4hi = *-1
 	sta txx+1
 	sta tyx+1
 	tax
-	lda Bx+1
-	sta _bx4hi
-	lda Bx
+	lda By+1
+	sta _by4hi
+	lda By
 	asl a
 	rol _by4hi
 	asl a
 	rol _by4hi
-	adc txy
+	add txy
 	sta txy
 	sta tyy
 	lda txy+1
@@ -339,7 +333,7 @@ _by4hi = *-1
 	sta txy+1
 	sta tyy+1
 	lda rotoBaseX
-	adc rotoHeight
+	add rotoHeight
 	sta rotoBaseX
 	bcc +
 	inc rotoBaseX+1
@@ -347,38 +341,86 @@ _by4hi = *-1
 	
 	; TODO: properly animate this
 +	
--	jmp placeroto
-
-setRotoRes
-rotoBaseXListLo = scratch
-rotoBaseXListHi = scratch+128
-	
-
-loadqstable_fill .block
+	lda Ay
+	add #$55
+	sta Ay
+	lda Ay+1
+	adc #5
+	and #63
+	sta Ay+1
+	lda Ax
+	add #$66
+	sta Ax
+	lda Ax+1
+	adc #6
+	and #31
+	sta Ax+1
+	lda ang
+	add #11
+	sta ang
+	tax
+	ldy #0
+	lda SineTable,x
+	bpl +
+	dey
++	sty By+1
+	asl a
+	rol By+1
+	asl a
+	rol By+1
+	sta By
+	txa
+	add #64 ; change to cos(x)
+	tax
+	ldy #0
+	lda SineTable,x
+	bpl +
+	dey
++	sty zTMP0
+	asl a
+	rol zTMP0
+	sta Bx
+	sta Cy
 	lda zTMP0
-	add zTMP3
-	sta zTMP0
-	lda	zTMP1
-	adc zTMP4
-	sta zTMP1
-	sta QSTableLo,x
-lo = *-1
-	lda zTMP2
-	adc zTMP5
-	sta zTMP2
-	sta QSTableHi,x
-hi = *-1
-	lda #$80 ; 0.5
-	adc zTMP3 ; last add is guaranteed to have carry cleared
-	sta zTMP3
-	bcc +
-	inc zTMP4
-	bne +
-	inc zTMP5
-+	inx
-	bne loadqstable_fill
-	rts
-	.bend
+	sta Bx+1
+	sta Cy+1
+	txa
+	add #64 ; change to -sin(x)
+	tax
+	ldy #0
+	lda SineTable,x
+	bpl +
+	dey
++	sta Cx
+	sty Cx+1
+	jmp placeroto
+ang	.byte 0
+
+; loadqstable_fill .block
+	; lda zTMP0
+	; add zTMP3
+	; sta zTMP0
+	; lda	zTMP1
+	; adc zTMP4
+	; sta zTMP1
+	; sta QSTableLo,x
+; lo = *-1
+	; lda zTMP2
+	; adc zTMP5
+	; sta zTMP2
+	; sta QSTableHi,x
+; hi = *-1
+	; lda #$80 ; 0.5
+	; adc zTMP3 ; last add is guaranteed to have carry cleared
+	; sta zTMP3
+	; bcc +
+	; inc zTMP4
+	; bne +
+	; inc zTMP5
+; +	inx
+	; bne loadqstable_fill
+	; rts
+	; .bend
 	
 
 expand
@@ -391,27 +433,6 @@ expand
 	.next
 	rts
 
-; copy display list of length y from .src to zARG0 and automatically append jump back to the start
-copydlist .block
-	iny
-	iny
-	lda zARG0+1
-	sta (zARG0), y
-	dey
-	lda zARG0
-	sta (zARG0), y
-	dey
-	lda #$41 ; jump and wait for vblank
-	sta (zARG0), y
--	dey
-	lda $ffff, y
-src = *-2
-	sta (zARG0), y
-	tya
-	bne -
-	rts
-	.bend
-
 vbk
 	pusha
 	; lda zNTSCcnt
@@ -420,6 +441,8 @@ vbk
 	; mva #5, zNTSCcnt
 	; jmp _popregs
 
+	mwa SDLSTL, rDLISTL
+	mva curpage, rCHBASE
 ; +	dec zNTSCcnt
 +	jsr updateMusic
 
@@ -427,12 +450,13 @@ _popregs
 	popa
 dummy
 	rti
+vbkreq	.byte 0
 
 sine_unmoved .block
-	; sin((x*2π/256)+1)*128
+	; sin(x*2π/256)*128
 _x := 0
 	.rept 64
-	.byte (sin(rad(_x*360.0/256.0))+1.0)*128
+	.byte sin(rad(_x*360.0/256.0))*128
 _x := _x + 1
 	.next
 	.bend
@@ -455,10 +479,12 @@ _x := _x - 63
 botbDlist0 .block
 	.byte $70, $70, $70 ; 24 blank lines
 	.byte $42 ; 24 mode 2
-addr	.word ?
+	.word chardat
 	.rept 23
 	.byte $02
 	.next
+	.byte $41 ; jvb
+	.word dlist
 	.bend
 
 	.align $100
