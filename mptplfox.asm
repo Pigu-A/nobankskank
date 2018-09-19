@@ -15,38 +15,40 @@ tp     = zp+11
 	ldy freq+1
 	lda aud
 	sta rAUDCTL
-	and #$10
-v10 = *-1
-	beq w1
-	ldy numdzw+1
-	ldx bsfrql,y
-	lda bsfrqh,y
-	tay
-w1
+	sta rAUDCTL+$10 ; make stereo mod owners love both ears
 	stx rAUDF1
+	stx rAUDF1+$10
 	sty rAUDF2
+	sty rAUDF2+$10
 	lda freq+2
 	sta rAUDF3
+	sta rAUDF3+$10
 	lda freq+3
 	sta rAUDF4
+	sta rAUDF4+$10
 	lda volume
 	sta rAUDC1
+	sta rAUDC1+$10
 	lda volume+1
 	sta rAUDC2
+	sta rAUDC2+$10
 	lda volume+2
 	sta rAUDC3
+	sta rAUDC3+$10
 	lda volume+3
 	sta rAUDC4
+	sta rAUDC4+$10
 
 	mvx #0, aud
 	inc licz
-	lda zCurMsxRow
+	lda #-1
+pozptr = *-1
 	cmp #$40
 lenpat = *-1
 	dec zegar
 	bcc r1
 	bne r5
-	stx zCurMsxRow
+	stx pozptr
 p2	lda #$ff
 	sta ptrwsk,x
 	sta licspc,x
@@ -54,7 +56,11 @@ p2	lda #$ff
 	sta ad
 	lda msx+$1c4,x
 	sta ad+1
-	ldy zCurMsxOrd
+	ldy #0
+pozsng = *-1
+	tya
+	lsr a
+	sta zCurMsxOrd
 p3	lda (ad),y
 	iny
 	cmp #$fe
@@ -64,7 +70,7 @@ p3	lda (ad),y
 	bmi p4
 	asl a
 	tay
-	sta zCurMsxOrd
+	sta pozsng
 	bcc p3
 p6	asl a
 	sta numptr,x
@@ -74,14 +80,14 @@ p7	inx
 	cpx #4
 	bcc p2
 	iny
-	sty zCurMsxOrd
+	sty pozsng
 	bcs r5
 p4	ldx #3
 	lda #0
 fin	sta volume,x
 	dex
 	bpl fin
-	dec zCurMsxRow
+	dec pozptr
 	inc zegar
 ret	rts
 
@@ -104,7 +110,8 @@ r4	dex
 	lda #5
 tempo = *-1
 	sta zegar
-	inc zCurMsxRow
+	mva pozptr, zCurMsxRow
+	inc pozptr
 
 r5	ldx #3
 	bne r6
@@ -305,7 +312,7 @@ q0	cmp #$c0
 	bcc q3
 	cmp #$e0
 	bcc q1
-	mva lenpat, zCurMsxRow
+	mva lenpat, pozptr
 	bcs new
 q1	cmp #$d0
 	bcc q2
@@ -367,6 +374,8 @@ q4	cmp #$40
 	sta freq,x
 qret	jmp r3
 
+v10	.byte $10
+
 akce
 	.byte a1-ak,a0-ak,a2-ak
 	.byte a4-ak,a5-ak,a6-ak,a8-ak
@@ -375,31 +384,6 @@ typy
 	.byte s4-so,s5-so,s6-so,s7-so
 ndziel	.byte $40,0,$20,0
 filtry	.byte 4,2,0,0
-
-bsfrql = *-1
-	.byte $f2,$33,$96
-	.byte $e2,$38,$8c,0
-	.byte $6a,$e8,$6a,$ef
-	.byte $80,8,$ae,$46
-	.byte $e6,$95,$41,$f6
-	.byte $b0,$6e,$30,$f6
-	.byte $bb,$84,$52,$22
-	.byte $f4,$c8,$a0,$7a
-	.byte $55,$34,$14,$f5
-	.byte $d8,$bd,$a4,$8d
-	.byte $77,$60,$4e,$38
-	.byte $27,$15,6,$f7
-	.byte $e8,$db,$cf,$c3
-	.byte $b8,$ac,$a2,$9a
-	.byte $90,$88,$7f,$78
-	.byte $70,$6a,$64,$5e
-
-bsfrqh = *-1
-	.byte $d,$d,$c,$b,$b,$a,$a,9
-	.byte 8,8,7,7,7,6,6,5,5,5,4,4,4,4
-	.byte 3,3,3,3,3,2,2,2,2,2,2,2
-	.byte 1,1,1,1,1,1,1,1,1,1,1,1
-	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 
 branch	.dword 0
 volume	.dword 0

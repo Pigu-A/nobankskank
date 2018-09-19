@@ -87,6 +87,14 @@ mwy	.function s, d
 	.endf
 
 adcw	.function v, s, d=-1
+	.if (type(v) == address) && (v < #256) && (d == -1)
+	lda lo(s)
+	adc v
+	sta s
+	bcc _x
+	inc s+1
+_x
+	.else
 	dd := d
 	.if d == -1
 	dd := s
@@ -97,6 +105,7 @@ adcw	.function v, s, d=-1
 	lda hi(s)
 	adc hi(v)
 	sta dd+1
+	.fi
 	.endf
 	
 addw	.function v, s, d=-1
@@ -105,6 +114,14 @@ addw	.function v, s, d=-1
 	.endf
 
 sbcw	.function v, s, d=-1
+	.if (type(v) == address) && (v < #256) && (d == -1)
+	lda lo(s)
+	sbc v
+	sta s
+	bcs +
+	dec s+1
++
+	.else
 	dd := d
 	.if d == -1
 	dd := s
@@ -115,6 +132,7 @@ sbcw	.function v, s, d=-1
 	lda hi(s)
 	sbc hi(v)
 	sta dd+1
+	.fi
 	.endf
 	
 subw	.function v, s, d=-1

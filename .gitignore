@@ -1,6 +1,7 @@
 # generated
 *.lz
 *.o
+*.mpc
 
 # precompiled Python
 *.pyc
