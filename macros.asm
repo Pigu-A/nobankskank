@@ -70,6 +70,36 @@ popa .function
 	pla
 	.endf
 
+adcb	.function v, s, d=-1
+	dd := d
+	.if d == -1
+	dd := s
+	.fi
+	lda s
+	adc v
+	sta dd
+	.endf
+	
+addb	.function v, s, d=-1
+	clc
+	adcb v, s, d
+	.endf
+	
+sbcb	.function v, s, d=-1
+	dd := d
+	.if d == -1
+	dd := s
+	.fi
+	lda s
+	sbc v
+	sta dd
+	.endf
+	
+subb	.function v, s, d=-1
+	sec
+	sbcb v, s, d
+	.endf
+
 ; 16-bit expansions
 mwa	.function s, d
 	mva lo(s), d
