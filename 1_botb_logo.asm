@@ -205,13 +205,32 @@ placeroto
 	lda Ay+1
 	sta txy+1
 	sta tyy+1
+	; multiply Bx,y by 4 since we are skipping 4 pixels when moving to the next column
+	lda Bx+1
+	sta _bx4hi
+	lda Bx
+	asl a
+	rol _bx4hi
+	asl a
+	rol _bx4hi
+	sta _bx4lo
+	lda By+1
+	sta _by4hi
+	lda By
+	asl a
+	rol _by4hi
+	asl a
+	rol _by4hi
+	sta _by4lo
 	lda #<charset
 rotoBaseLo = *-1
 	sta rotoBaseX
+	sta rotoBaseX2
 	lda #>(charset+$200)
 rotoDestHi = *-1
 	eor #4 ; flip the page
 	sta rotoBaseX+1
+	sta rotoBaseX2+1
 	sta rotoDestHi
 	lda #0
 curpage = *-1
@@ -270,6 +289,9 @@ _x := _x + 2
 	ldy by ; 3
 	sta $ffff,y ; 5
 rotoBaseX = *-2
+	iny	; 2
+	sta $ffff,y ; 5
+rotoBaseX2 = *-2
 	iny ; 2
 	cpy #64 ; 2
 rotoHeight = *-1
@@ -292,20 +314,14 @@ rotoHeight = *-1
 	and #63 ; 2
 	sta tyy+1 ; 3
 	jmp _loop ; 3
-	           ; = 250
+	           ; = 257
 	; advance to next column
 +	dec bx
 	beq ++ ; finished
 	mva #0, by
-	; multiply Bx,y by 4 since we are skipping 4 pixels
-	lda Bx+1
-	sta _bx4hi
-	lda Bx
-	asl a
-	rol _bx4hi
-	asl a
-	rol _bx4hi
-	add txx
+	lda txx
+	add #0
+_bx4lo = *-1
 	sta txx
 	sta tyx
 	tay
@@ -316,14 +332,9 @@ _bx4hi = *-1
 	sta txx+1
 	sta tyx+1
 	tax
-	lda By+1
-	sta _by4hi
-	lda By
-	asl a
-	rol _by4hi
-	asl a
-	rol _by4hi
-	add txy
+	lda txy
+	add #0
+_by4lo = *-1
 	sta txy
 	sta tyy
 	lda txy+1
@@ -335,28 +346,30 @@ _by4hi = *-1
 	lda rotoBaseX
 	add rotoHeight
 	sta rotoBaseX
+	sta rotoBaseX2
 	bcc +
 	inc rotoBaseX+1
+	inc rotoBaseX2+1
 +	jmp _loop
 	
 	; TODO: properly animate this
 +	
 	lda Ay
-	add #$55
+	add #$33
 	sta Ay
 	lda Ay+1
-	adc #5
+	adc #3
 	and #63
 	sta Ay+1
 	lda Ax
-	add #$66
+	add #$44
 	sta Ax
 	lda Ax+1
-	adc #6
+	adc #4
 	and #31
 	sta Ax+1
 	lda ang
-	add #11
+	add #7
 	sta ang
 	tax
 	ldy #0
@@ -376,14 +389,14 @@ _by4hi = *-1
 	lda SineTable,x
 	bpl +
 	dey
-+	sty zTMP0
++	sty Bx+1
 	asl a
-	rol zTMP0
+	rol Bx+1
 	sta Bx
+	mvy Bx+1, Cy+1
+	asl a
+	rol Cy+1
 	sta Cy
-	lda zTMP0
-	sta Bx+1
-	sta Cy+1
 	txa
 	add #64 ; change to -sin(x)
 	tax
@@ -391,8 +404,10 @@ _by4hi = *-1
 	lda SineTable,x
 	bpl +
 	dey
-+	sta Cx
-	sty Cx+1
++	sty Cx+1
+	asl a
+	rol Cx+1
+	sta Cx
 	jmp placeroto
 ang	.byte 0
 
@@ -421,17 +436,6 @@ ang	.byte 0
 	; bne loadqstable_fill
 	; rts
 	; .bend
-	
-
-expand
-	.rept 4
-	asl zTMP0
-	php
-	rol a
-	plp
-	rol a
-	.next
-	rts
 
 vbk
 	pusha
@@ -488,6 +492,6 @@ botbDlist0 .block
 	.bend
 
 	.align $100
-botbTex	.binary "gfx/botb.4x8.1bpp"
+botbTex	.binary "gfx/botb.t.1bpp"
 
 scratch .fill $100

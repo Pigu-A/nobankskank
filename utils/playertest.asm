@@ -17,7 +17,7 @@ start
 ; init player variables
 	mva #3, rSKCTL
 	sta rSKCTL+$10
-; conver the mpc file back to mpt
+; convert the mpc file back to mpt
 	mva msx+$1c8, lenpat
 	ldx msx+$1c9
 	dex

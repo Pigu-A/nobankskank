@@ -41,15 +41,15 @@ NUM_PARTS = 1 ; number of demo parts, not including part 0
 ; global addresses, sorted from lowest to highest, do not modify the order
 decompress  = $700 ; pointer to lz decompressor routine
 deDED       = $8ed ; pointer to ded decoder routine
-runDemo     = $a10 ; pointer to part loader and music
-updateMusic = runDemo + 3 ; pointer to music update routine
+runDemo     = $a10 ; pointer to part loader, music and global util functions
+initQSTable = runDemo + 3
+updateMusic = runDemo + 6 ; must be the last
+
 compressedPartAddresses = partEntry-(NUM_PARTS*2) ; pointer to compressed part address table
 partEntry   = $2000 ; every demo parts (except part 0) get decompressed here and jumped to
 xexStart    = partEntry ; entry point of this demo executable
 
 ; math tables
 	.weak
-QSTableLo  = $f800 ; 1024 bytes, for multiplication
-QSTableHi  = $fa00
 SineTable  = $fc00 ; 256 bytes
 	.endweak
