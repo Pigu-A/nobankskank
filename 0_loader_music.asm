@@ -8,7 +8,7 @@
 	jmp initQSTable_
 updateMusic_
 	.include "mptplfox.asm" ; player routine
-msx	.binary "gowno.mpc"
+msx	.binary "CZUJESZT.MPC"
 
 initQSTable_
 	; fill (zARG0) and (zARG0)+256 with x²/256

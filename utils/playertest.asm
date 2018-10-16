@@ -194,7 +194,7 @@ _clrt = *-2
 	and #1 ; 16kHz mode
 	asl a ; x2
 	asl a ; x4
-	sta zTMP0
+	sta zTMP4
 	lda aud
 	ldx #0
 	and #$80 ; 9-bit poly
@@ -209,7 +209,7 @@ _clrt = *-2
 	sta zARG0+1
 	mwa #txt_freqs, printinfo.src
 	lda aud
-	ldy zTMP0
+	ldy zTMP4
 	cpx #1
 	bne +
 	and #$40 ; ch1 1.79
@@ -324,7 +324,7 @@ dlist
 	.word dlist
 	
 update .include "../mptplfox.asm"
-msx	.binary "../gowno.mpc"
+msx	.binary "../CZUJESZT.MPC"
 
 	.align $400
 pm	.fill $180

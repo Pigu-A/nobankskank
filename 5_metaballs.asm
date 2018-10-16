@@ -1,4 +1,4 @@
-; Part 6: Metaballs
+; Part 5: Metaballs
 	.include "gvars.asm"
 	
 VVBLKI = $222
