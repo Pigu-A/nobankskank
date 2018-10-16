@@ -20,8 +20,7 @@ initQSTable_
 	stx _ndst1+1 
 	inx ; make a copy on the next page for negative offset support too
 	stx _pdst2+1
-	stx _ndst2+1 
-	mvx
+	stx _ndst2+1
 	mva #-1, zTMP2
 	sta zTMP3
 	mva #1, zTMP0

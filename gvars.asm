@@ -40,8 +40,7 @@ NUM_PARTS = 1 ; number of demo parts, not including part 0
 
 ; global addresses, sorted from lowest to highest, do not modify the order
 decompress  = $700 ; pointer to lz decompressor routine
-deDED       = $8ed ; pointer to ded decoder routine
-runDemo     = $a10 ; pointer to part loader, music and global util functions
+runDemo     = $900 ; pointer to part loader, music and global util functions
 initQSTable = runDemo + 3
 updateMusic = runDemo + 6 ; must be the last
 
