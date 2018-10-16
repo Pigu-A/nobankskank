@@ -595,7 +595,7 @@ _horline
 	gcc _done
 	
 	
-logoi	.byte 0, 256-3, 256-5, 256-8 ; also doubles as a delay
+logoi	.char 0, -3, -5, -8 ; also doubles as a delay
 logopos	.fill 4
 logobeg	.fill 4
 logoend	.fill 4
