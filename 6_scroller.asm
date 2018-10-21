@@ -1,4 +1,4 @@
-; Part 7: text scroller
+; Part 6: text scroller
 	.include "gvars.asm"
 
 VDSLST = $200
