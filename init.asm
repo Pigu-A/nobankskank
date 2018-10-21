@@ -48,7 +48,7 @@ CIOV    = $e456
 +	inx
 	bne -
 	; move compressedPartAddresses table
-	ldx #NUM_PARTS*2
+	ldx #NUM_PARTS*4
 -	lda cpa_unmoved-1,x
 	sta compressedPartAddresses-1,x
 	dex
@@ -95,9 +95,26 @@ decompress_unmoved	.logical decompress
 
 cpa_unmoved	.logical compressedPartAddresses
 	; not including part 0
-	.word part1_compressed
+	; .word part1_compressed, partEntry
+	; .word part2_compressed, partEntry
+	; .word part3_compressed, partEntry
+	; .word part4_compressed, partEntry
+	; .word part5_compressed, partEntry
+	; .word part6_compressed, partEntry
+	.word part7_compressed, partEntry_7
+	; .word part8_compressed, partEntry
+	; .word part9_compressed, partEntry
 	.here
-	.cerror size(cpa_unmoved) != NUM_PARTS*2, "Number of cpa_unmoved entries and NUM_PARTS mismatch"
+	.cerror size(cpa_unmoved) != NUM_PARTS*4, "Number of cpa_unmoved entries and NUM_PARTS mismatch"
 
 part0_compressed .binary "0_loader_music.lz"
-part1_compressed .binary "1_botb_logo.lz"
+; part1_compressed .binary "1_botb_logo.lz"
+; part2_compressed .binary "2_parallax.lz"
+; part3_compressed .binary "3_title.lz"
+; part4_compressed .binary "4_twister.lz"
+; part5_compressed .binary "5_metaballs.lz"
+; part6_compressed .binary "6_scroller.lz"
+	* = $5000
+part7_compressed .binary "7_mecha_grill.lz"
+; part8_compressed .binary "8_greets.lz"
+; part9_compressed .binary "9_credits.lz"

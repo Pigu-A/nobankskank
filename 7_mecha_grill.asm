@@ -1,16 +1,17 @@
 ; Part 7: GR.9/10 interlaced art ✗
 	.include "gvars.asm"
 	
+SDMCTL = $22f
 SDLSTL = $230
 COLOR  = $2c0
 
 HEIGHT = 100
 	
-*	= $02e0
-	.word start
-	
-*	= $2000
+*	= partEntry_7
 start
+	mva #0, SDMCTL
+	mwa #vbi, rNMI
+	mva #$40, rNMIEN
 	mva #$70, dlist0 ; 8 blank lines
 	sta dlist0+1
 	sta dlist1
@@ -76,6 +77,7 @@ _dst10H = *-2
 	mwa #dlist1, dlist1d+HEIGHT*6+1
 	
 	mwa #dlist0, SDLSTL
+	mva #$22, SDMCTL ; enable dlist dma, normal pf
 loop
 	lda #0
 framecnt = *-1
@@ -91,7 +93,6 @@ framecnt = *-1
 +	sta SDLSTL+1
 	lda COLOR
 	sta rCOLBK
-	sta COLOR+8
 	jsr scene0 ; update scene-specific variables
 scefunc = *-2
 
@@ -154,12 +155,16 @@ _done
 _fade .byte 15
 	
 scene1 ; TODO tile copying system when I actually have an animation finished
-	; dec _ctr
-	; bne _done
-	; mwa #scene2, scefunc
-; _done
+	lda zCurMsxOrd
+	cmp #$24
+	bne _done
+	lda zCurMsxRow
+	cmp #$30
+	bne _done
+	mwa #scene2, scefunc
+	jmp scene2
+_done
 	rts
-_ctr	.byte 0
 
 scene2
 	; scroll the whole gfx to the right
@@ -283,6 +288,22 @@ _t1 := _t2
 _x := _x + 1
 	.next
 	.bend
+	
+vbi
+	sta nmiA
+	stx nmiX
+	sty nmiY
+	mwa SDLSTL, rDLISTL
+	mva SDMCTL, rDMACTL
+	ldx #7
+-	mva COLOR,x, rCOLPM0,x
+	dex
+	bpl -
+	jsr updateMusic
+	lda nmiA
+	ldx nmiX
+	ldy nmiY
+	rti
 	
 	.align $1000
 	.fill 42, 0 ; buffer for when scrolling right

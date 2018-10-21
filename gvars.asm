@@ -44,9 +44,11 @@ runDemo     = $900 ; pointer to part loader, music and global util functions
 initQSTable = runDemo + 3
 updateMusic = runDemo + 6 ; must be the last
 
-compressedPartAddresses = partEntry-(NUM_PARTS*2) ; pointer to compressed part address table
-partEntry   = $2000 ; every demo parts (except part 0) get decompressed here and jumped to
-xexStart    = partEntry ; entry point of this demo executable
+compressedPartAddresses = xexStart-(NUM_PARTS*2) ; pointer to compressed part address table
+xexStart    = $2000 ; entry point of this demo executable, any parts can't have entry point before this
+; entry point for each parts
+partEntry   = $2000 ; common
+partEntry_7 = $2d00
 
 ; math tables
 	.weak

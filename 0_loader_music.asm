@@ -49,7 +49,17 @@ _ndst2 = *-2
 	
 runDemo_
 	; init player variables
-	mvx #0, zCurMsxOrd
+	; part ord
+	;  1   $00
+	;  2   $05
+	;  3   $09
+	;  4   $0b
+	;  5   $11
+	;  6   $15
+	;  7   $23
+	;  8   $25
+	;  9   $30
+	mvx #$23*2, pozsng
 	mva #3, rSKCTL
 	sta rSKCTL+$10
 	; convert the mpc file back to mpt
@@ -96,20 +106,33 @@ runDemo_
 	bne -
 	
 	ldx #0
--	lda compressedPartAddresses,x
+-	
+	; disable all interrupts
+	sei
+	mva #0, rNMIEN
+	sta rDMACTL ; turn off all DMAs for faster decompression
+	; os rom swap out is done in part 1
+	; uncomment this when debugging each parts
+	mva #2, rPORTB
+	lda compressedPartAddresses,x
 	sta zARG0
 	inx
 	lda compressedPartAddresses,x
 	sta zARG0+1
 	inx
-	mwa #partEntry, zARG1
+	lda compressedPartAddresses,x
+	sta zARG1
+	sta _entry
+	inx
+	lda compressedPartAddresses,x
+	sta zARG1+1
+	sta _entry+1
+	inx
 	txa
 	pha
 	jsr decompress ; decompress the part
 	jsr partEntry ; call the part
-	; disable all interrupts
-	mva #0, rNMIEN
-	sei
+_entry = *-2
 	pla
 	tax
 	jmp -
