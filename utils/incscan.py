@@ -16,12 +16,13 @@ def scan_file(filename):
 		# look for .include, .binclude and .binary
 		if 'include' not in line and '.binary' not in line:
 			continue
-		line = line[1:].split(';')[0]
+		line = line.split(';')[0] # remove all comments
+		line = line[1:] # remove false positive on labels
 		include = re.findall('\s\.b?include\s*"(.+)"',line)
 		if len(include) > 0:
 			includes.add(include[0])
 			scan_file(include[0])
-		else: # it must be .binary
+		elif len(line) > 0: # it must be .binary
 			include = line.split('"')[1]
 			includes.add(include)
 
