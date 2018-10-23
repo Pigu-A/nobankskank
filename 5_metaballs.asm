@@ -1,22 +1,16 @@
 ; Part 5: Metaballs
 	.include "gvars.asm"
-	
-VVBLKI = $222
+
 SDMCTL = $22f
 SDLSTL = $230
-GPRIOR = $26f
-COLOR  = $2c0
-CHBAS  = $2f4
 ball1Y = GVarsZPBegin-12
 ball1X = GVarsZPBegin-11
 ball1R = GVarsZPBegin-10
+volume = $c46 ; from part 0
 	
 TRESHOLD = 8
 
-*	= $02e0
-	.word start
-	
-*	= $2000
+*	= partEntry
 start
 	; fill squareTable with x**2/128
 	; x**2 = 1+3+5+...+(x*2-1), x is signed
@@ -37,32 +31,9 @@ start
 	bpl -
 	mva #$7f, squareTable+$80 ; clamp to 127 to prevent overflow
 	
-	; fill QSTable and QSTable+256 with x²/256
-	; this is used for fast 8-bit*8-bit unsigned multiplication
-	; x is of range [-64,191] ([0..128]x[0..63])
-	; mva >#QSTable, zARG0
-	; mva #192, zARG1
-	; jsr initQSTable
-	mva #-1, zTMP2
-	sta zTMP3
-	mva #1, zTMP0
-	mva #0, zTMP1
-	tax
-	tay
--	addw zTMP2, zTMP0
-	sta QSTable,x
-	sta QSTable+256,x
-	cpy #-64
-	bcc + ; don't store if index y is below -64
-	sta QSTable,y
-	sta QSTable+256,y
-+	addw #2, zTMP2
-	dey
-	inx
-	cpx #192
-	bne -
-	mva >#QSTable, zARG2+1
-	sta zARG3+1
+	mva >#QSTable, zARG0
+	mva #192, zARG1
+	jsr initQSTable
 	
 	ldx #8*16-1
 -	mva msqtiles,x, charset,x
@@ -79,31 +50,35 @@ _dst = *-2
 	sta _dst
 	dey
 	bne --
-	ldx #112
--	mva bordergfx-1,x  , player00+7,x
-	mva bordergfx+111,x, player01+7,x
-	mva bordergfx+223,x, player02+7,x
-	mva bordergfx+335,x, player03+7,x
-	mva bordergfx+447,x, player10+7,x
-	mva bordergfx+559,x, player11+7,x
-	mva bordergfx+671,x, player12+7,x
-	mva bordergfx+783,x, player13+7,x
-	dex
-	bne -
-	mva #$30, rHPOSP0
-	mva #$38, rHPOSP1
-	mva #$c0, rHPOSP2
-	mva #$c8, rHPOSP3
 	
-	ldx #size(colors)
--	mva colors-1,x, COLOR-1,x
+	; copy border gfx
+	ldx #0
+	ldx #127
+-	mva bordergfx,x    , player00,x
+	mva bordergfx+128,x, player01,x
+	mva bordergfx+256,x, player02,x
+	mva bordergfx+384,x, player03,x
+	mva bordergfx+512,x, player10,x
+	mva bordergfx+640,x, player11,x
+	mva bordergfx+768,x, player12,x
+	mva bordergfx+896,x, player13,x
 	dex
-	bne -
+	bpl -
+	mva #0, rHPOSP0
+	sta rHPOSP1
+	sta rHPOSP2
+	sta rHPOSP3
 	
-	mva #15, ball1R
-	mva #15, ball1R+3
-	mva #15, ball1R+6
-	mva #15, ball1R+9
+	ldx #3
+-	mva colors,x, rCOLPM0,x
+	dex
+	bpl -
+	lda #0
+	ldx #4
+-	sta rCOLPF0,x
+	dex
+	bpl -
+	
 	; unpack xanim_d
 	ldx #0
 	stx zTMP0
@@ -134,15 +109,14 @@ _dst = *-2
 	bne -
 	
 	mwa #dlist, SDLSTL
-	mva >#charset, CHBAS
+	mva >#charset, rCHBASE
 	sta rPMBASE
 	sta pmbas
+	mva #0, rNMIEN
 	mva #$29, SDMCTL ; enable player and dlist dma, narrow pf, double line player
-	mva #$01, GPRIOR ; all players above pf
+	mva #$01, rPRIOR ; all players above pf
 	mva #$02, rGRACTL ; turn on player
-	mva #$00, rNMIEN
-	mwa VVBLKI, nextvbk
-	mwa #vbk, VVBLKI
+	mwa #vbk, rNMI
 	mva #$40, rNMIEN ; vblank
 	
 loop
@@ -153,9 +127,26 @@ loop
 	sta vbkreq
 -	lda vbkreq
 	bne -
+	lda endpart
+	beq renderballs
+	rts ; end this part
 	
 renderballs
+	; update the size according to the music
+	lda volume ; get the volume from the player
+	and #$0f
+	asl a
+	add #8
+	sta ball1R
+	sta ball1R+6
+	lda volume+1
+	and #$0f
+	asl a
+	add #8
+	sta ball1R+3
+	sta ball1R+9
 	ldx #0
+	; calculate balls display
 	mva #-56, zTMP0
 	mva #15, zTMP3
 _loopy
@@ -266,23 +257,120 @@ ddst = *-2
 	bne +
 	ldx #0
 +	stx ballanim
-	addb #3, cylx
+	; addb #3, cylx
 	jmp loop
 	
 ballanim	.byte 0
 	
 vbk
-	; sta nmiA
+	sta nmiA
+	stx nmiX
+	sty nmiY
+	mwa SDLSTL, rDLISTL
+	mva SDMCTL, rDMACTL
 	lda #0
 pmbas = *-1
 	eor #(>(player00-$200))^(>(player10-$200))
 	sta pmbas
 	sta rPMBASE
 	mva #0, vbkreq
-	; lda nmiA
-	jmp $ffff
-nextvbk = *-2
+	jsr scene0 ; update scene-specific variables
+scefunc = *-2
+	jsr updateMusic
+	lda nmiA
+	ldx nmiX
+	ldy nmiY
+	rti
 vbkreq	.byte 0
+
+scene0
+	lda zCurMsxRow
+	cmp #$30
+	bcc _skip
+	lda #$30
+	sub _pos
+	sta rHPOSP0
+	add #8
+	sta rHPOSP1
+	lda #$c0
+	add _pos
+	sta rHPOSP2
+	add #8
+	sta rHPOSP3
+	dec _pos
+	bpl _skip
+	mwa #scene1, scefunc
+_skip
+	rts
+_pos	.byte 27
+
+scene1
+	lda #0
+_odd = *-1
+	eor #1
+	sta _odd
+	beq _skip
+	ldx #3
+-	lda colors+4,x
+	sub _pos
+	bcs +
+	lda #0
++	sta rCOLPF0,x
+	dex
+	bpl -
+	rts
+_skip
+	dec _pos
+	bpl +
+	mwa #scene2, scefunc
++	rts
+_pos	.byte 13
+
+scene2
+	lda zCurMsxOrd
+	cmp #$14
+	bcc _skip
+	lda zCurMsxRow
+	bne _skip
+	mwa #scene3, scefunc
+_skip
+	rts
+	
+scene3
+	lda zCurMsxRow
+	cmp #$30
+	bcc _skip
+	lda #0
+_odd = *-1
+	eor #1
+	sta _odd
+	beq _skip2
+	ldx #8
+-	lda colors,x
+	and #$0f
+	add _pos
+	cmp #$0f
+	bcc +
+	lda #$0f
++	sta _msk
+	lda colors,x
+	and #$f0
+	ora #0
+_msk = *-1
+	sta rCOLPM0,x
+	dex
+	bpl -
+_skip
+	rts
+_skip2
+	inc _pos
+	lda _pos
+	cmp #16
+	bne +
+	inc endpart
++	rts
+_pos	.byte 1
+endpart	.byte 0
 	
 dlist
 	.byte $70 ; 8 blank lines

@@ -99,9 +99,9 @@ cpa_unmoved	.logical compressedPartAddresses
 	; .word part2_compressed, partEntry
 	; .word part3_compressed, partEntry
 	; .word part4_compressed, partEntry
-	; .word part5_compressed, partEntry
+	.word part5_compressed, partEntry
 	; .word part6_compressed, partEntry
-	.word part7_compressed, partEntry_7
+	; .word part7_compressed, partEntry_7
 	; .word part8_compressed, partEntry
 	; .word part9_compressed, partEntry
 	.here
@@ -112,9 +112,8 @@ part0_compressed .binary "0_loader_music.lz"
 ; part2_compressed .binary "2_parallax.lz"
 ; part3_compressed .binary "3_title.lz"
 ; part4_compressed .binary "4_twister.lz"
-; part5_compressed .binary "5_metaballs.lz"
+part5_compressed .binary "5_metaballs.lz"
 ; part6_compressed .binary "6_scroller.lz"
-	* = $5000
-part7_compressed .binary "7_mecha_grill.lz"
+; part7_compressed .binary "7_mecha_grill.lz"
 ; part8_compressed .binary "8_greets.lz"
 ; part9_compressed .binary "9_credits.lz"
