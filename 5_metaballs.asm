@@ -6,7 +6,7 @@ SDLSTL = $230
 ball1Y = GVarsZPBegin-12
 ball1X = GVarsZPBegin-11
 ball1R = GVarsZPBegin-10
-volume = $c46 ; from part 0
+volume = $c49 ; from part 0
 	
 TRESHOLD = 8
 
@@ -112,7 +112,7 @@ _dst = *-2
 	mva >#charset, rCHBASE
 	sta rPMBASE
 	sta pmbas
-	mva #0, rNMIEN
+	jsr disnmi
 	mva #$29, SDMCTL ; enable player and dlist dma, narrow pf, double line player
 	mva #$01, rPRIOR ; all players above pf
 	mva #$02, rGRACTL ; turn on player
@@ -428,3 +428,4 @@ player10	.fill 128
 player11	.fill 128
 player12	.fill 128
 player13	.fill 128
+	.warn format("Part 5's memory usage: %#04x - %#04x", start, *)

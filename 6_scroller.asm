@@ -1,7 +1,6 @@
 ; Part 6: text scroller
 	.include "gvars.asm"
 
-VDSLST = $200
 SDMCTL = $22f
 SDLSTL = $230
 GPRIOR = $26f
@@ -9,16 +8,10 @@ COLOR  = $2c0
 
 SCROLL_SPEED = 3 ; please don't exceed 16
 TEXT_Y = 65 ; starting y position of text
-
-*	= $02e0
-	.word start
 	
-*	= $2000
+*	= partEntry
 start
-	lda <#dlist
-	sta SDLSTL
-	lda >#dlist
-	sta SDLSTL+1
+	mwa #dlist, SDLSTL
 	mva #$0f, COLOR
 	sta COLOR+1
 	sta COLOR+2
@@ -27,39 +20,13 @@ start
 	mva #$9a, COLOR+6
 	mva #12, rHSCROL
 	mva >#(player0-$200), rPMBASE
-	mva #$01, GPRIOR ; all players above pf
-	mva #$2a, SDMCTL ; enable player and dlist dma, normal pf, double line player
+	mva #$01, rPRIOR ; all players above pf
 	mva #$02, rGRACTL ; turn on player
 	
-	; fill QSTable and QSTable+256 with x²/256
-	; this is used for fast 8-bit*8-bit multiplication
-	; x² = 1+3+5+...+(x*2-1)
-	; in this case, since the grid has max scrolling range of 96 and xpos of 63
-	; x is of range [-96,159] instead of usual [0,255]
-	mva #-1, zTMP2
-	sta zTMP3
-	mva #1, zTMP0
-	mva #0, zTMP1
-	tax
-	tay
--	addw zTMP2, zTMP0
-	sta QSTable,x
-	sta QSTable+256,x
-	cpy #-96
-	bcc + ; don't store if index y is below -96
-	sta QSTable,y
-	sta QSTable+256,y
-+	lda zTMP2
-	add #2
-	sta zTMP2
-	bcc +
-	inc zTMP3
-+	dey
-	inx
-	cpx #160
-	bne -
-	mva >#QSTable, zARG2+1
-	sta zARG3+1
+	; in this case, the grid has max scrolling range of 96 and xpos of 63
+	mva >#QSTable, zARG0
+	mva #160, zARG1
+	jsr initQSTable
 	
 	; the current function for character x position table is
 	; (x/128)³*32+x/2+124 for x = [-128,-127,..,128]
@@ -98,14 +65,14 @@ _sk
 -	sub bounceLUT,x ; apply delta
 	sta bounceLUT,x
 	inx
-	cpx #53
+	cpx #67
 	bne -
-	ldy #51 ; loop back
+	ldy #65 ; loop back
 -	lda bounceLUT,y
 	sta bounceLUT,x
 	inx
 	dey
-	cpy #8
+	cpy #10
 	bne -
 	
 	; build dlist
@@ -167,7 +134,44 @@ _dst2 = *-2
 	cpy #4
 	bne _copyloop
 	
+	; clear player data
+	lda #0
+	ldx #127
+-	sta player0,x
+	sta player1,x
+	sta player2,x
+	sta player3,x
+	dex
+	bpl -
+	
+intro
+	lda #5
+_st	= *-1
+	cmp #65
+	beq _done
+-	cmp rVCOUNT
+	bne -
+	sta rWSYNC
+	sta rWSYNC
+	mva #$0f, rCOLBK ; white
+	lda #123
+_en	= *-1
+-	cmp rVCOUNT
+	bne -
+	sta rWSYNC
+	sta rWSYNC
+	mva #$00, rCOLBK ; black
+	inc _st
+	inc _st
+	dec _en
+	dec _en
+	gne intro
+_done
+	
 	mwa #wordloopadj(size(text)), chrc
+	jsr disnmi
+	mwa #vbi, rNMI
+	mva #$2a, SDMCTL ; enable player and dlist dma, normal pf, double line player
 	mva #$40, rNMIEN
 	
 loop
@@ -184,6 +188,9 @@ loop
 	sta rWSYNC
 	mva #$00, rCOLBK
 	mwa #dli1, VDSLST ; load text scroller dli
+	jsr scene0 ; update scene-specific variables
+scefunc = *-2
+	
 	lda #$10
 logoh = *-1
 	add #$10
@@ -202,16 +209,16 @@ logoh = *-1
 	; init layers
 	ldx #4
 -	lda logoi-1,x
-	cmp #96
+	cmp #122
 	bcc + ; not delay
 	inc logoi-1,x
 	lda #-1
 	sta logobeg-1,x
 	bmi _skip
 +	add #4
-	cmp #96
+	cmp #122
 	bcc +
-	lda #8
+	lda #10
 +	sta logoi-1,x
 	tay
 	lda bounceLUT,y
@@ -375,6 +382,7 @@ _done
 	lda >#dlist_grid
 	sta dlist_battleOf,y
 	
+	jsr updateMusic
 ; text scroller
 	lda #120 ; wait until out of screen
 -	cmp rVCOUNT
@@ -595,7 +603,7 @@ _horline
 	gcc _done
 	
 	
-logoi	.char 0, -3, -5, -8 ; also doubles as a delay
+logoi	.char 0, -4, -7, -11 ; also doubles as a delay
 logopos	.fill 4
 logobeg	.fill 4
 logoend	.fill 4
@@ -607,6 +615,30 @@ chry	.byte 9
 chrc	.word 0
 framecnt	.byte 0
 txtcnt	.byte 0
+
+scene0
+	lda zCurMsxOrd
+	cmp #$22
+	bcc _skip
+	lda zCurMsxRow
+	bne _skip
+	mwa #scene1, scefunc
+_skip
+	rts
+	
+scene1
+	lda zCurMsxRow
+	cmp #$3c
+	bcc +
+	lda #0
+	sta rGRACTL
+	sta rHPOSP0
+	sta rHPOSP1
+	sta rHPOSP2
+	sta rHPOSP3
+	pla ; pop return address so the stack points 
+	pla ; to the loader's return address instead
++	rts
 
 battleOf_blank
 	ldx #$70 ; 8 blank lines
@@ -627,7 +659,6 @@ battleOf_blank
 +	rts
 
 dliB
-	sta nmiA
 	lda rVCOUNT
 	cmp #64
 	bcs skipdli ; don't do the last line
@@ -639,7 +670,6 @@ dliB_idx = *-2
 	jmp skipdli
 
 dli1
-	sta nmiA
 	dec zTMP1
 	bpl skipdli
 	mva #3,zTMP1
@@ -651,7 +681,6 @@ dli1
 	jmp dli2_
 	
 dli2
-	sta nmiA
 	dec zTMP1
 	bpl skipdli
 	mva #3,zTMP1
@@ -686,7 +715,6 @@ skipdli
 	rti
 
 dli3
-	sta nmiA
 	dec zTMP1
 	bpl skipdli
 	mva #$40, rNMIEN ; no more tiles below
@@ -698,18 +726,37 @@ dli3
 	sta rHPOSP2
 	jmp skipdli_x
 	
+vbi
+	sta nmiA
+	bit rNMIST
+	bpl +
+	jmp dli1
+VDSLST = *-2
++	stx nmiX
+	mwa SDLSTL, rDLISTL
+	mva SDMCTL, rDMACTL
+	ldx #7
+-	mva COLOR,x, rCOLPM0,x
+	dex
+	bpl -
+	lda nmiA
+	ldx nmiX
+	rti
+	
 dlistblankcodes
 	.byte $00, $10, $20, $30, $40, $50, $60 ; still faster than left shifting 4 times
 		
 gridaddrs
 	.byte >grid0, >grid1, >grid2, >grid3
 	
+	.union
+	.struct
 bounceLUT	.block
-	; (52-(x/4))²*80/121 stored in a delta form instead to allow more compression
-	.byte 0, 4, 4, 4, 4, 4, 4, 4, 3, 4, 4, 3, 3, 4, 3, 3
-	.byte 3, 3, 3, 2, 3, 3, 2, 3, 2, 2, 3, 2, 2, 2, 1, 2
-	.byte 2, 2, 1, 2, 1, 1, 1, 2, 1, 0, 1, 1, 1, 0, 1, 0
-	.byte 1, 0, 0, 0, 0
+	; (66-x)²*80/56² stored in a delta form instead to allow more compression
+	.byte 0, 4, 3, 3, 3, 4, 3, 3, 3, 3, 2, 3, 3, 3, 3, 2
+	.byte 3, 2, 3, 2, 3, 2, 2, 2, 2, 3, 2, 2, 2, 2, 1, 2
+	.byte 2, 2, 1, 2, 2, 1, 1, 2, 1, 2, 1, 1, 1, 1, 1, 1
+	.byte 1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0
 	.bend
 
 chrxLUT_packed	.block
@@ -718,8 +765,9 @@ chrxLUT_packed	.block
 	.byte %00000000, %00000000, %00000000, %00000000, %00000000, %10000000, %00100000, %00100010
 	.byte %00001000, %10001000, %10100010, %10001010, %10101010, %10101010, %10101110, %10111010
 	.bend
-	
-	.fill 44-32 ; bounceLUT needs more 44 bytes when unpacked - chrxLUT_packed size
+	.ends
+	.fill size(bounceLUT)+56
+	.endu
 	
 chryLUT .block
 _x := 0
@@ -743,9 +791,6 @@ font	.binary "scroller/font_gen.1bpp"
 battleOf	.binary "gfx/battleOf.1bpp"
 	.align $100
 grid0	.binary "gfx/grid.2bpp"
-grid1	.fill size(grid0)
-grid2	.fill size(grid0)
-grid3	.fill size(grid0)
 
 chrxLUT	.fill 256
 QSTable	.fill 512
@@ -761,3 +806,10 @@ player0	.fill $80
 player1	.fill $80
 player2	.fill $80
 player3	.fill $80
+	.warn format("Part 6's memory usage: %#04x - %#04x", start, *)
+	
+*	= $c000
+grid1	.fill size(grid0)
+*	= $e000
+grid2	.fill size(grid0)
+grid3	.fill size(grid0)

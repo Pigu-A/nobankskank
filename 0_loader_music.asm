@@ -6,6 +6,7 @@
 	; util functions jump table
 	jmp runDemo_
 	jmp initQSTable_
+	jmp disnmi_
 updateMusic_
 	.include "mptplfox.asm" ; player routine
 msx	.binary "czujeszt.mpc"
@@ -45,6 +46,15 @@ _ndst2 = *-2
 	bne -
 	mva zARG0, zARG2+1
 	sta zARG3+1
+	rts
+	
+disnmi_
+	; safely turns off nmi without missing the interrupt
+	ldy #5
+	sta rWSYNC
+-	dey
+	bne -
+	sty rNMIEN
 	rts
 	
 runDemo_
@@ -106,14 +116,15 @@ runDemo_
 	bne -
 	
 	ldx #0
--	
-	; disable all interrupts
+loop
 	sei
-	mva #0, rNMIEN
-	sta rDMACTL ; turn off all DMAs for faster decompression
+	jsr disnmi_
+	sty rDMACTL ; turn off all DMAs for faster decompression
 	; os rom swap out is done in part 1
 	; uncomment this when debugging each parts
-	mva #2, rPORTB
+	mva #$fe, rPORTB
+	mwa #defaultvbi, rNMI
+	mva #$40, rNMIEN
 	lda compressedPartAddresses,x
 	sta zARG0
 	inx
@@ -135,6 +146,17 @@ runDemo_
 _entry = *-2
 	pla
 	tax
-	jmp -
+	jmp loop
+	
+	; keep music running while the part is being decompressed
+defaultvbi
+	sta nmiA
+	stx nmiX
+	sty nmiY
+	jsr updateMusic_
+	lda nmiA
+	ldx nmiX
+	ldy nmiY
+	rti
 	
 	.cerror * > compressedPartAddresses, format("Music data is too large and goes over compressedPartAddresses by %d bytes", * - compressedPartAddresses)

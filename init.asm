@@ -100,9 +100,9 @@ cpa_unmoved	.logical compressedPartAddresses
 	; .word part3_compressed, partEntry
 	; .word part4_compressed, partEntry
 	.word part5_compressed, partEntry
-	; .word part6_compressed, partEntry
-	; .word part7_compressed, partEntry_7
-	; .word part8_compressed, partEntry
+	.word part6_compressed, partEntry
+	.word part7_compressed, partEntry_7
+	.word part8_compressed, partEntry
 	; .word part9_compressed, partEntry
 	.here
 	.cerror size(cpa_unmoved) != NUM_PARTS*4, "Number of cpa_unmoved entries and NUM_PARTS mismatch"
@@ -112,8 +112,14 @@ part0_compressed .binary "0_loader_music.lz"
 ; part2_compressed .binary "2_parallax.lz"
 ; part3_compressed .binary "3_title.lz"
 ; part4_compressed .binary "4_twister.lz"
+	.warn format("Part 5: %#04x", *)
 part5_compressed .binary "5_metaballs.lz"
-; part6_compressed .binary "6_scroller.lz"
-; part7_compressed .binary "7_mecha_grill.lz"
-; part8_compressed .binary "8_greets.lz"
+* = $3800
+	.warn format("Part 6: %#04x", *)
+part6_compressed .binary "6_scroller.lz"
+	.warn format("Part 7: %#04x", *)
+part7_compressed .binary "7_mecha_grill.lz"
+	.warn format("Part 8: %#04x", *)
+part8_compressed .binary "8_greets.lz"
+	; .warn format("Part 9: %#04x", *)
 ; part9_compressed .binary "9_credits.lz"

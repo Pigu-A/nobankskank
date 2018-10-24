@@ -269,11 +269,10 @@ _dst11H = *-2
 	lda _lasti
 	cmp #size(_lut)
 	bne _done
-	; pla ; pop return address so the stack points 
-	; pla ; to the loader's return address instead
+	pla ; pop return address so the stack points 
+	pla ; to the loader's return address instead
 	mva #0, rCOLPF2
 	sta COLOR+6
-	geq *
 _done
 	rts
 _lasti	.byte 0
@@ -319,3 +318,4 @@ dlist0d	.fill HEIGHT*6+3
 	.align $400
 dlist1	.fill 3
 dlist1d	.fill HEIGHT*6+3
+	.warn format("Part 7's memory usage: %#04x - %#04x", start, *)

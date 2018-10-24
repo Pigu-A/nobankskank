@@ -36,15 +36,16 @@ zTMP5 .byte ?
 zTMP6 .byte ?
 zTMP7 .byte ?
 
-NUM_PARTS = 1 ; number of demo parts, not including part 0
+NUM_PARTS = 4 ; number of demo parts, not including part 0
 
 ; global addresses, sorted from lowest to highest, do not modify the order
 decompress  = $700 ; pointer to lz decompressor routine
 runDemo     = $900 ; pointer to part loader, music and global util functions
 initQSTable = runDemo + 3
-updateMusic = runDemo + 6 ; must be the last
+disnmi      = runDemo + 6
+updateMusic = runDemo + 9 ; must be the last
 
-compressedPartAddresses = xexStart-(NUM_PARTS*2) ; pointer to compressed part address table
+compressedPartAddresses = xexStart-(NUM_PARTS*4) ; pointer to compressed part address table
 xexStart    = $2000 ; entry point of this demo executable, any parts can't have entry point before this
 ; entry point for each parts
 partEntry   = $2000 ; common

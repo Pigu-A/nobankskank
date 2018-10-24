@@ -15,6 +15,7 @@ includes := $(PYTHON) utils/incscan.py
 lstconv := $(PYTHON) utils/lstconv.py
 mptconv := $(PYTHON) utils/mptconv.py
 gfx := $(PYTHON) utils/gfx.py
+scrollergen := $(PYTHON) scroller/scrollergen.py
 
 all: pdv_nbsk.xex
 
@@ -40,6 +41,8 @@ ${LZ}: utils/lzcomp.c
 
 %.mpc: %.mpt
 	$(mptconv) $< $@
+scroller/data.bin: scroller/data.txt scroller/font_all.1bpp
+	$(scrollergen)
 
 # demo parts
 %.o: dep = $(shell $(includes) $(@D)/$*.asm)
