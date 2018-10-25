@@ -69,7 +69,7 @@ runDemo_
 	;  7   $23
 	;  8   $25
 	;  9   $30
-	mvx #$10*2, pozsng
+	mvx #$09*2, pozsng
 	mva #3, rSKCTL
 	sta rSKCTL+$10
 	; convert the mpc file back to mpt

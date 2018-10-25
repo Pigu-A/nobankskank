@@ -97,7 +97,7 @@ cpa_unmoved	.logical compressedPartAddresses
 	; not including part 0
 	; .word part1_compressed, partEntry
 	; .word part2_compressed, partEntry
-	; .word part3_compressed, partEntry
+	.word part3_compressed, partEntry_3
 	; .word part4_compressed, partEntry
 	.word part5_compressed, partEntry
 	.word part6_compressed, partEntry
@@ -110,11 +110,11 @@ cpa_unmoved	.logical compressedPartAddresses
 part0_compressed .binary "0_loader_music.lz"
 ; part1_compressed .binary "1_botb_logo.lz"
 ; part2_compressed .binary "2_parallax.lz"
-; part3_compressed .binary "3_title.lz"
+	.warn format("Part 3: %#04x", *)
+part3_compressed .binary "3_title.lz"
 ; part4_compressed .binary "4_twister.lz"
 	.warn format("Part 5: %#04x", *)
 part5_compressed .binary "5_metaballs.lz"
-* = $3800
 	.warn format("Part 6: %#04x", *)
 part6_compressed .binary "6_scroller.lz"
 	.warn format("Part 7: %#04x", *)
