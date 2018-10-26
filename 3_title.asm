@@ -83,8 +83,8 @@ vbi
 	jmp psw0
 VDSLST = *-2
 +
-	mwa SDLSTL, rDLISTL
 	mva SDMCTL, rDMACTL
+	mwa SDLSTL, rDLISTL
 	mva >#tiledat, rCHBASE
 	jsr updateMusic
 	mva #0, vbkreq

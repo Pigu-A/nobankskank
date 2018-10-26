@@ -20,6 +20,7 @@ def main(f):
 		s = s.strip()
 		if s in exclude: continue
 		a = a.strip()
+		if a[0] == "[": continue # no lists
 		if a[0] == "#": continue # no immediate values
 		if a[0] == "$": a = int(a[1:], 16)
 		elif a[0] == "%": a = int(a[1:], 2)

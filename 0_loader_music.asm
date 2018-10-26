@@ -7,6 +7,7 @@
 	jmp runDemo_
 	jmp initQSTable_
 	jmp disnmi_
+	jmp loadSineTable_
 updateMusic_
 	.include "mptplfox.asm" ; player routine
 msx	.binary "czujeszt.mpc"
@@ -57,6 +58,43 @@ disnmi_
 	sty rNMIEN
 	rts
 	
+loadSineTable_
+	; fill SineTable with the data in sine_unmoved
+	; sine_unmoved contains only the first π/2 region
+	; but due to how sine function works it's possible to expand it to the full 2π range
+	; a = destination table's page
+	sta _dst0+1
+	sta _dst1+1
+	sta _dst2+1
+	sta _dst3+1
+	ldx #0
+	ldy #64
+-	lda _dat, x
+	sta $ff00, x
+_dst0 = *-2
+	sta $ff40, y
+_dst1 = *-2
+	neg
+	sta $ff80, x
+_dst2 = *-2
+	sta $ffc0, y
+_dst3 = *-2
+	inx
+	dey
+	bne -
+	; these two addresses are not filled by the above loop
+	mva #127, SineTable+64
+	mva #-128, SineTable+192
+	rts
+_dat .block
+	; sin(x*2π/256)*128
+_x := 0
+	.rept 64
+	.byte sin(rad(_x*360.0/256.0))*128
+_x := _x + 1
+	.next
+	.bend
+	
 runDemo_
 	; init player variables
 	; part ord
@@ -69,7 +107,7 @@ runDemo_
 	;  7   $23
 	;  8   $25
 	;  9   $30
-	mvx #$09*2, pozsng
+	mvx #0, pozsng
 	mva #3, rSKCTL
 	sta rSKCTL+$10
 	; convert the mpc file back to mpt
@@ -116,15 +154,17 @@ runDemo_
 	bne -
 	
 	ldx #0
+	geq loader
 loop
 	sei
 	jsr disnmi_
 	sty rDMACTL ; turn off all DMAs for faster decompression
 	; os rom swap out is done in part 1
 	; uncomment this when debugging each parts
-	mva #$fe, rPORTB
+	; mva #$fe, rPORTB
 	mwa #defaultvbi, rNMI
 	mva #$40, rNMIEN
+loader
 	lda compressedPartAddresses,x
 	sta zARG0
 	inx

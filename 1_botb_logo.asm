@@ -1,4 +1,4 @@
-; Part 1: BotB logo (and lots of stuff that will be used later by the other parts)
+; Part 1: BotB logo
 	.include "gvars.asm"
 
 SDLSTL = $230
@@ -10,20 +10,13 @@ texArea = $d800 ; must be page-aligned
 os_char = $e000
 
 *	= partEntry
-	; region check
-	; lda #$ff
-	; sta zNTSCcnt
-	; lda #$e
-	; bit rPAL
-	; beq +
-	; inc zNTSCcnt
-; +
+start
 	; move char rom into ram
 mvchr
 	ldx #0
 	ldy #4
 _loop
-	mva #3, rPORTB
+	mva #$fb, rPORTB
 	lda os_char, x
 _src = *-2
 	sta scratch, x
@@ -32,7 +25,7 @@ _src = *-2
 	lda #124 ; wait until out of screen
 -	cmp rVCOUNT
 	bne -
-	mva #2, rPORTB
+	mva #$fa, rPORTB
 -	lda scratch, x
 	sta charset, x
 _dst = *-2
@@ -58,41 +51,8 @@ _dst2 = *-2
 	dey
 	bne -
 	
-loadsinetable
-	; fill SineTable with the data in sine_unmoved
-	; sine_unmoved contains only the first π/2 region
-	; but due to how sine function works it's possible to expand it to the full 2π range
-	ldx #0
-	ldy #64
--	lda sine_unmoved, x
-	sta SineTable, x
-	sta SineTable+64, y
-	neg
-	sta SineTable+128, x
-	sta SineTable+192, y
-	inx
-	dey
-	bne -
-	; these two addresses are not filled by the above loop
-	mva #127, SineTable+64
-	mva #-128, SineTable+192
-
-; loadqstable
-	; fill QSTableLo+Hi with x**2/4
-	; this is used for fast 8-bit*8-bit unsigned multiplication
-	; x**2 = 1+3+5+...+(x*2-1)
-	; mva #$c0, zTMP3 ; -0.25
-	; ldx #$ff
-	; stx zTMP4
-	; stx zTMP5
-	; mva #$40, zTMP0 ; 0.25
-	; inx
-	; stx zTMP1
-	; stx zTMP2
-	; jsr loadqstable_fill
-	; inc loadqstable_fill.lo
-	; inc loadqstable_fill.hi
-	; jsr loadqstable_fill
+	lda #>SineTable
+	jsr loadSineTable
 
 initcharmap	
 	; force 40x24 hires char mode with data at $bc40
@@ -106,7 +66,18 @@ initcharmap
 	mva #$ca, COLOR+5 ; default a8 palette
 	sta rCOLPF1
 	mva #$94, COLOR+6
-	sta rCOLPF2
+	; special case: if there's internal basic before,
+	; just copy the data from $9c40
+	lda $6
+	beq putlogotiles
+	ldx #0
+-	mva $9c40,x, chardat,x
+	mva $9d30,x, chardat+240,x
+	mva $9e20,x, chardat+480,x
+	mva $9f10,x, chardat+720,x
+	inx
+	cpx #240
+	bne -
 	
 putlogotiles
 	; time to put botb logo in the middle of the screen
@@ -180,11 +151,7 @@ bx  = zTMP7 ;
 	mwa #0, By
 	mwa #0, Cx
 	mwa #$100, Cy
-
 	mwa #vbk, rNMI
-	mwa #dummy, rRESET
-	mwa #dummy, rIRQ
-	
 	mva #0, rIRQEN
 	mva #$40, rNMIEN ; vblank
 	cli
@@ -240,6 +207,9 @@ curpage = *-1
 	sta rNMIRES
 -	bit rNMIST
 	bvc -
+	jsr scene0 ; update scene-specific variables
+scefunc = *-2
+
 	lda #8
 rotoWidth = *-1
 	sta bx
@@ -411,59 +381,26 @@ _by4hi = *-1
 	jmp placeroto
 ang	.byte 0
 
-; loadqstable_fill .block
-	; lda zTMP0
-	; add zTMP3
-	; sta zTMP0
-	; lda	zTMP1
-	; adc zTMP4
-	; sta zTMP1
-	; sta QSTableLo,x
-; lo = *-1
-	; lda zTMP2
-	; adc zTMP5
-	; sta zTMP2
-	; sta QSTableHi,x
-; hi = *-1
-	; lda #$80 ; 0.5
-	; adc zTMP3 ; last add is guaranteed to have carry cleared
-	; sta zTMP3
-	; bcc +
-	; inc zTMP4
-	; bne +
-	; inc zTMP5
-; +	inx
-	; bne loadqstable_fill
-	; rts
-	; .bend
-
 vbk
-	pusha
-	; lda zNTSCcnt
-	; bmi ++ ; PAL
-	; bne +
-	; mva #5, zNTSCcnt
-	; jmp _popregs
-
+	sta nmiA
+	stx nmiX
+	sty nmiY
 	mwa SDLSTL, rDLISTL
 	mva curpage, rCHBASE
-; +	dec zNTSCcnt
-+	jsr updateMusic
-
-_popregs
-	popa
-dummy
+	jsr updateMusic
+	lda nmiA
+	ldx nmiX
+	ldy nmiY
 	rti
-vbkreq	.byte 0
-
-sine_unmoved .block
-	; sin(x*2π/256)*128
-_x := 0
-	.rept 64
-	.byte sin(rad(_x*360.0/256.0))*128
-_x := _x + 1
-	.next
-	.bend
+	
+scene0
+	lda zCurMsxOrd
+	cmp #$05
+	bcc _skip
+	pla ; pop return address so the stack points 
+	pla ; to the loader's return address instead
+_skip
+	rts
 
 botbFrame
 	.enc "a8screen"
@@ -495,3 +432,4 @@ botbDlist0 .block
 botbTex	.binary "gfx/botb.t.1bpp"
 
 scratch .fill $100
+	.warn format("Part 1's memory usage: %#04x - %#04x", start, *)

@@ -131,7 +131,7 @@ _dst2 = *-2
 	jmp -
 +	ldy zTMP0
 	iny
-	cpy #4
+	cpy #3
 	bne _copyloop
 	
 	; clear player data

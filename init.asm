@@ -19,15 +19,16 @@ CIOV    = $e456
 	bcs -
 	lda rPORTB
 	pha
-	and #$fe
+	and #$fe ; disable os rom
+	ora #$02 ; disable internal basic
 	sta rPORTB
 	; 64k xl/xe test
 	mva #$72, CIOV
 	cmp CIOV ; should be #$72 instead of #$4c (jmp) or #$ff
 	bne notEnoughRam
-	lda zRAMTOP
-	cmp #$c0 ; value when booted in DOS with BASIC disabled and cart removed
-	bcc removeCart
+	sta $bffc
+	lda $bffc ; should be #$72 instead of #$00
+	beq removeCart
 	lda rPAL
 	and #$e ; region check
 	bne ntscSystem
@@ -95,10 +96,10 @@ decompress_unmoved	.logical decompress
 
 cpa_unmoved	.logical compressedPartAddresses
 	; not including part 0
-	; .word part1_compressed, partEntry
-	; .word part2_compressed, partEntry
+	.word part1_compressed, partEntry
+	.word part2_compressed, partEntry
 	.word part3_compressed, partEntry_3
-	; .word part4_compressed, partEntry
+	.word part4_compressed, partEntry
 	.word part5_compressed, partEntry
 	.word part6_compressed, partEntry
 	.word part7_compressed, partEntry_7
@@ -108,11 +109,14 @@ cpa_unmoved	.logical compressedPartAddresses
 	.cerror size(cpa_unmoved) != NUM_PARTS*4, "Number of cpa_unmoved entries and NUM_PARTS mismatch"
 
 part0_compressed .binary "0_loader_music.lz"
-; part1_compressed .binary "1_botb_logo.lz"
-; part2_compressed .binary "2_parallax.lz"
+	.warn format("Part 1: %#04x", *)
+part1_compressed .binary "1_botb_logo.lz"
+	.warn format("Part 2: %#04x", *)
+part2_compressed .binary "2_parallax.lz"
 	.warn format("Part 3: %#04x", *)
 part3_compressed .binary "3_title.lz"
-; part4_compressed .binary "4_twister.lz"
+	.warn format("Part 4: %#04x", *)
+part4_compressed .binary "4_twister.lz"
 	.warn format("Part 5: %#04x", *)
 part5_compressed .binary "5_metaballs.lz"
 	.warn format("Part 6: %#04x", *)

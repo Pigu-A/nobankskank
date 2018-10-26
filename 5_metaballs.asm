@@ -6,7 +6,7 @@ SDLSTL = $230
 ball1Y = GVarsZPBegin-12
 ball1X = GVarsZPBegin-11
 ball1R = GVarsZPBegin-10
-volume = $c49 ; from part 0
+volume = $c4c ; from part 0
 	
 TRESHOLD = 8
 
