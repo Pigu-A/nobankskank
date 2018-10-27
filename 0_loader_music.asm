@@ -67,6 +67,8 @@ loadSineTable_
 	sta _dst1+1
 	sta _dst2+1
 	sta _dst3+1
+	sta _dst4+1
+	sta _dst5+1
 	ldx #0
 	ldy #64
 -	lda _dat, x
@@ -83,8 +85,12 @@ _dst3 = *-2
 	dey
 	bne -
 	; these two addresses are not filled by the above loop
-	mva #127, SineTable+64
-	mva #-128, SineTable+192
+	lda #127
+	sta $ff40
+_dst4 = *-2
+	lda #-128
+	sta $ffc0
+_dst5 = *-2
 	rts
 _dat .block
 	; sin(x*2π/256)*128

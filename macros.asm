@@ -26,6 +26,11 @@ sub	.function a
 	sec
 	sbc a
 	.endf
+	
+asr .function a
+	cmp #$80 ; bit 7 -> carry
+	ror a
+	.endf
 
 mva	.function s, d
 	lda s
