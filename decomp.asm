@@ -153,13 +153,13 @@ copy
 	inc dst+1
 	jmp --
 +	txa
-	beq --
+	beq +
 -	lda (src),y
 	sta (dst),y
 	iny
 	dex
 	bne -
--	rts
++	rts
 
 iter
 ; Write the same byte for (tlen)x bytes.
