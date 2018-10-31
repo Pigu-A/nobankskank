@@ -105,11 +105,33 @@ frame1 = *-1
 	bpl +
 	dey
 +	sty zTMP1 ; -.5~.5
-	.rept 3
+	asl a
+	sta _lo
+	rol zTMP1 ; -1~1
+	ldy zTMP1
 	asl a
 	rol zTMP1
-	.next ; -4~4
+	asl a
+	rol zTMP1 ; -4~4
 	sta zTMP2
+	add #0
+_lo = *-1
+	sta zTMP3
+	tya
+	adc zTMP1 ; -5~5
+	asl zTMP3
+	rol a
+	sta _m0
+	add #$be
+	sta rHPOSM2
+	sub #8
+	sta rHPOSM3
+	lda #$be
+	sbc #0
+_m0 = *-1
+	sta rHPOSM0
+	sub #8
+	sta rHPOSM1
 	lda #0
 ypos = *-1
 	add #3
@@ -326,13 +348,12 @@ scene1
 _skip
 	rts
 	
-screenaddress   = range(buf_Screen, buf_Screen+52*64, 52)..range(buf_Screen+$1000, buf_Screen+52*64+$1000, 52)
+screenaddress   = buf_Screen + range(0, 52*64, 52)..range($1000, 52*64+$1000, 52)
 	
 tab_screen_hi   .byte >(screenaddress)
 tab_screen_lo   .byte <(screenaddress)
 
-colors	.byte $4c,$4c,$4c,$4c,$04,$0a,$0e,$34
-
+colors	.byte $4a,$4a,$4a,$4a,$04,$0a,$0e,$36
 
 	.align $100
 	.union
@@ -356,7 +377,7 @@ displaylist0
 	.ends
 	.fill $180
 	.endu
-mis00	.fill $80
+mis00	.binary "gfx/twmis.1bpp"
 pyr00	.fill $80
 pyr01	.fill $80
 pyr02	.fill $80
