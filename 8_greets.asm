@@ -6,8 +6,14 @@ SDMCTL = $22f
 SDLSTL = $230
 GPRIOR = $26f
 
+DURATION = 92
+
 *	= partEntry
 start
+	; mva >#QSTable, zARG0
+	; mva #192, zARG1
+	; jsr initQSTable
+	
 	mva #$0f, rCOLPM0
 	sta rCOLPM1
 	sta rCOLPM2
@@ -39,28 +45,64 @@ loop
 -	cmp rVCOUNT
 	bne -
 	sta rCOLBK
-	lda #-3
-xpos = *-1
-	add #3
-	sta xpos
-	tax
+	ldx #DURATION
+frame = *-1
+	inx
+	stx frame
+	cpx #DURATION
 	bcc done
 	jsr drawtext
-	mva #-1, oldsiz ; force redraw
+	mva #128, xpos
+	mva #96, ypos
 	ldx #0
+	stx frame
 	stx zTMP2
+	stx xposd
+	stx yposd
+	; generate new x,y position
+	ldy #0
+	lda rRANDOM
+	bpl +
+	dey
++	sty txtdXH
+	asl a
+	rol txtdXH ; x1
+	sta txtdXL
+	ldy #0
+	lda rRANDOM
+	bpl +
+	dey
++	sty txtdYH
+	sta txtdYL ; x.5
 done
-	txa
-	lsr a
-	lsr a
-	lsr a
-	lsr a
-	and #3
-	tay
-	lda sizs,y
-	cmp oldsiz
-	sta oldsiz
-	beq +
+	; calculate the position
+	lda #0
+xposd = *-1
+	add #0
+txtdXL = *-1
+	sta xposd
+	lda xpos
+	adc #0
+txtdXH = *-1
+	sta xpos
+	lda #0
+yposd = *-1
+	add #0
+txtdYL = *-1
+	sta yposd
+	lda ypos
+	adc #0
+txtdYH = *-1
+	sta ypos
+	; calculate the size
+	cpx #DURATION/2
+	lda #0
+	bcc +
+	cpx #DURATION*3/4
+	lda #1
+	bcc +
+	lda #2
++	sta siz
 	tay
 	; clear pm data, begin and end are from the last text redraw
 	lda #0
@@ -77,7 +119,7 @@ _clearlast = *-1
 	; redraw the text from buffer
 	mva #6, zTMP0
 	mwa #missile, zARG0
-	lda #64
+	lda #96
 ypos = *-1
 	sub yofs,y
 	sta zTMP2
@@ -103,12 +145,12 @@ _skipamt = *-1
 	bne _copytopm
 	sty _clearlast
 	
-+	ldx xpos
++	ldx #0
+xpos = *-1
 	ldy #0
-oldsiz = *-1
+siz = *-1
 	jsr settextpos
 	jmp loop
-sizs	.byte 0, 1, 2, 1
 yofs	.byte 4, 8, 16
 skips	.byte 9, 6, 0
 
@@ -262,7 +304,7 @@ greets
 	.text "chip=win"
 	.text " titan  "
 	.text "8static "
-	.text "fairlght"
+	.text " f l t  "
 	.text " kulor  "
 	.text "trilobit"
 	.text "bitprtns"
@@ -272,14 +314,17 @@ greets
 	.text "atariage"
 	.text " ctrix  "
 	.text "sibcrew "
-	.text "  dhs   "
+	.text " d h s  "
 	.text "chkpoint"
-	.text "  sfmx  "
+	.text "s f m x "
 	.text " lamers "
-	.text "  rmc   "
-	.text "  vlk   "
+	.text " r m c  "
+	.text " v l k  "
 	.text " mskty  "
 	.text "tppdevs "
+	
+	; .align $100
+; QSTable	.fill $200
 	
 	.align $800
 	.union

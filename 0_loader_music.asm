@@ -79,9 +79,10 @@ _dst1 = *-2
 	neg
 	sta $ff80, x
 _dst2 = *-2
+	beq + ; don't write to dst+$100
 	sta $ffc0, y
 _dst3 = *-2
-	inx
++	inx
 	dey
 	bne -
 	; these two addresses are not filled by the above loop
@@ -113,7 +114,7 @@ runDemo_
 	;  7   $23
 	;  8   $25
 	;  9   $30
-	mvx #0, pozsng
+	mvx #$30*2, pozsng
 	mva #3, rSKCTL
 	sta rSKCTL+$10
 	; convert the mpc file back to mpt
@@ -159,7 +160,7 @@ runDemo_
 	dex
 	bne -
 	
-	ldx #0
+	ldx #8*4
 	geq loader
 loop
 	sei
@@ -167,7 +168,7 @@ loop
 	sty rDMACTL ; turn off all DMAs for faster decompression
 	; os rom swap out is done in part 1
 	; uncomment this when debugging each parts
-	; mva #$fe, rPORTB
+	mva #$fe, rPORTB
 	mwa #defaultvbi, rNMI
 	mva #$40, rNMIEN
 loader

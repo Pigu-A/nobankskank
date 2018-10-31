@@ -2,11 +2,12 @@
 	.include "gvars.asm"
 	
 ; os memory stuff before we completely ditch it
-zRAMTOP = $6a
-wICCMD  = $342
-wICBA   = $344
-wICBL   = $348
-CIOV    = $e456
+DOSVEC = $0a
+CH     = $2fc
+ICCMD  = $342
+ICBA   = $344
+ICBL   = $348
+CIOV   = $e456
 
 *	= $02e0
 	.word xexStart
@@ -61,29 +62,34 @@ CIOV    = $e456
 	jmp runDemo
 
 notEnoughRam
-	mwa #notEnoughRamText, wICBA
-	mva #<size(notEnoughRamText), wICBL
+	mwa #notEnoughRamText, ICBA
+	mva #<size(notEnoughRamText), ICBL
 	jmp putChar
 	
 removeCart
-	mwa #removeCartText, wICBA
-	mva #<size(removeCartText), wICBL
+	mwa #removeCartText, ICBA
+	mva #<size(removeCartText), ICBL
 	jmp putChar
 	
 ntscSystem
-	mwa #ntscSystemText, wICBA
-	mva #<size(ntscSystemText), wICBL
+	mwa #ntscSystemText, ICBA
+	mva #<size(ntscSystemText), ICBL
 	jmp putChar
 	
 putChar
-	mva #0, wICBL+1
-	mva #$0b, wICCMD ; put characters
+	mva #0, ICBL+1
+	mva #$0b, ICCMD ; put characters
 	pla
 	sta rPORTB ; resore os rom and intterrupts
 	mva #$40, rNMIEN
 	cli
 	ldx #0
-	jmp CIOV ; bye
+	jsr CIOV
+	lda #$ff
+	sta CH
+-	cmp CH
+	beq -
+	jmp (DOSVEC) ; bye
 	
 	.enc "atascii"
 notEnoughRamText .text "Whoops! This demo needs 64k XL to run!"
@@ -104,7 +110,7 @@ cpa_unmoved	.logical compressedPartAddresses
 	.word part6_compressed, partEntry
 	.word part7_compressed, partEntry_7
 	.word part8_compressed, partEntry
-	; .word part9_compressed, partEntry
+	.word part9_compressed, partEntry
 	.here
 	.cerror size(cpa_unmoved) != NUM_PARTS*4, "Number of cpa_unmoved entries and NUM_PARTS mismatch"
 
@@ -125,5 +131,5 @@ part6_compressed .binary "6_scroller.lz"
 part7_compressed .binary "7_mecha_grill.lz"
 	.warn format("Part 8: %#04x", *)
 part8_compressed .binary "8_greets.lz"
-	; .warn format("Part 9: %#04x", *)
-; part9_compressed .binary "9_credits.lz"
+	.warn format("Part 9: %#04x", *)
+part9_compressed .binary "9_credits.lz"

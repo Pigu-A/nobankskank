@@ -36,7 +36,7 @@ zTMP5 .byte ?
 zTMP6 .byte ?
 zTMP7 .byte ?
 
-NUM_PARTS = 8 ; number of demo parts, not including part 0
+NUM_PARTS = 9 ; number of demo parts, not including part 0
 
 ; global addresses, sorted from lowest to highest, do not modify the order
 decompress    = $700 ; pointer to lz decompressor routine
