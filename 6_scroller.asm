@@ -6,7 +6,7 @@ SDLSTL = $230
 GPRIOR = $26f
 COLOR  = $2c0
 
-SCROLL_SPEED = 3 ; please don't exceed 16
+SCROLL_SPEED = 3.55 ; please don't exceed 16
 TEXT_Y = 65 ; starting y position of text
 	
 *	= partEntry
@@ -16,8 +16,9 @@ start
 	sta COLOR+1
 	sta COLOR+2
 	sta COLOR+3
-	mva #$20, COLOR+5
-	mva #$9a, COLOR+6
+	mva #0, COLOR+4
+	sta COLOR+5
+	sta COLOR+6
 	mva #12, rHSCROL
 	mva >#(player0-$200), rPMBASE
 	mva #$01, rPRIOR ; all players above pf
@@ -144,6 +145,25 @@ _dst2 = *-2
 	dex
 	bpl -
 	
+	; patch the extended memory amout to the scroller text
+	lda z64ksOfGay
+	beq intro ; = 0k
+	ldx #4
+	cmp #2
+	bcc + ; <= 64k
+	ldx #9
+	cmp #5
+	bcc + ; <= 256k
+	ldx #14
+	cmp #9
+	bcc + ; <= 512k
+	ldx #19 ; > 512k
++	ldy #4
+-	mva exmemtexts,x, text+37,y
+	dex
+	dey
+	bpl -
+	
 intro
 	lda #5
 _st	= *-1
@@ -183,7 +203,9 @@ loop
 	sta rWSYNC
 	sta rWSYNC
 	mva #$0f, rCOLBK ; draw a white line
-	mva #$70, rCOLPF0
+	lda #$00
+gridcol1 = *-1
+	sta rCOLPF0
 	sta rWSYNC
 	sta rWSYNC
 	mva #$00, rCOLBK
@@ -193,8 +215,8 @@ scefunc = *-2
 	
 	lda #$10
 logoh = *-1
-	add #$10
-	cmp #$f0
+	add #0
+colcy = *-1
 	bne +
 	lda #$10
 +	sta logoh
@@ -207,6 +229,12 @@ logoh = *-1
 	sta logocol
 	
 	; init layers
+	dec bcnt
+	bne _skipall
+	lda #10
+bspdD = *-1
+	sta bcnt
+	
 	ldx #4
 -	lda logoi-1,x
 	cmp #122
@@ -214,13 +242,15 @@ logoh = *-1
 	inc logoi-1,x
 	lda #-1
 	sta logobeg-1,x
-	bmi _skip
-+	add #4
+	gmi _skip
++	
+	add #1
+bspdM = *-1
 	cmp #122
 	bcc +
 	lda #10
 +	sta logoi-1,x
-	tay
++	tay
 	lda bounceLUT,y
 	sta logopos-1,x
 	sta logobeg-1,x
@@ -381,6 +411,7 @@ _done
 	iny
 	lda >#dlist_grid
 	sta dlist_battleOf,y
+_skipall
 	
 	jsr updateMusic
 ; text scroller
@@ -403,8 +434,12 @@ _done
 	sta zTMP1
 	add #TEXT_Y+1
 	sta pyrY
+	lda #0
+_frac = *-1
+	sub #(SCROLL_SPEED*256)%256
+	sta _frac
 	lda chrx
-	sub #SCROLL_SPEED
+	sbc #SCROLL_SPEED
 	sta zTMP0
 	sta chrx
 	
@@ -460,8 +495,12 @@ _cmd3 = *-1
 	bne -
 	
 placetext
+	lda #0
+_frac = *-1
+	sub #(SCROLL_SPEED*256)%256
+	sta _frac
 	lda txtcnt
-	sub #SCROLL_SPEED
+	sbc #SCROLL_SPEED
 	sta txtcnt
 	bcs updategrid
 	adc #16
@@ -603,7 +642,7 @@ _horline
 	gcc _done
 	
 	
-logoi	.char 0, -4, -7, -11 ; also doubles as a delay
+logoi	.char -1, -6, -12, -17 ; also doubles as a delay
 logopos	.fill 4
 logobeg	.fill 4
 logoend	.fill 4
@@ -615,18 +654,54 @@ chry	.byte 9
 chrc	.word 0
 framecnt	.byte 0
 txtcnt	.byte 0
+bcnt    .byte 1
 
 scene0
+	dec _cnt
+	bne _skip
+	mva #6, _cnt
+	lda #11
+	sub _cnt2
+	ora #$90
+	sta COLOR+6
+	dec _cnt2
+	bne _skip
+	mva #$20, COLOR+5
+	mva #$70, gridcol1
+	mwa #scene1, scefunc
+_skip
+	rts
+_cnt .byte 11
+_cnt2 .byte 11
+
+scene1
+	lda logoi
+	cmp #66
+	bcc _skip
+	mva #0, bspdM
+	mva #-1, bcnt
+	lda zCurMsxRow
+	cmp #$3c
+	bcc _skip
+	mva #1, bspdD
+	sta bcnt
+	mva #4, bspdM
+	mva #$10, colcy
+	mwa #scene2, scefunc
+_skip
+	rts
+
+scene2
 	lda zCurMsxOrd
 	cmp #$22
 	bcc _skip
 	lda zCurMsxRow
 	bne _skip
-	mwa #scene1, scefunc
+	mwa #scene3, scefunc
 _skip
 	rts
 	
-scene1
+scene3
 	lda zCurMsxRow
 	cmp #$3c
 	bcc +
@@ -786,6 +861,12 @@ _x := _x + 1
 	.next
 	.bend
 
+exmemtexts
+	.byte 0,0,8,2,9 ; '  64K'
+	.byte 0,6,7,3,9 ; ' 256K'
+	.byte 0,7,5,1,9 ; ' 512K'
+	.byte 5,4,6,2,9 ; '1024K'
+	
 text	.binary "scroller/data.bin"
 font	.binary "scroller/font_gen.1bpp"
 battleOf	.binary "gfx/battleOf.1bpp"

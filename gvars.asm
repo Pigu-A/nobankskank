@@ -5,17 +5,15 @@
 	.include "macros.asm"
 	
 ; zeropage
-*	= $dc
+*	= $de
 GVarsZPBegin = *
 
 ; interrupt temp storage
-irqA .byte ?
-irqX .byte ?
-irqY .byte ?
 nmiA .byte ?
 nmiX .byte ?
 nmiY .byte ?
 
+z64ksOfGay .byte ? ; extended ram size
 ; zNTSCcnt   .byte ? ; -1 = PAL, 0-5 = NTSC
 zCurMsxOrd .byte ? ; current music order
 zCurMsxRow .byte ? ; current music row

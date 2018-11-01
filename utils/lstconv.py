@@ -24,7 +24,9 @@ def main(f):
 		if a[0] == "#": continue # no immediate values
 		if a[0] == "$": a = int(a[1:], 16)
 		elif a[0] == "%": a = int(a[1:], 2)
-		else: a = int(a)
+		else:
+			try: a = int(a)
+			except ValueError: continue # no float constants
 		if 0xd000 <= a < 0xd800: continue # no hw symbols, altirra already covered them
 		symbs.add((s,a))
 	fi.close()
