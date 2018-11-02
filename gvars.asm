@@ -43,6 +43,7 @@ initQSTable   = runDemo + 3
 disnmi        = runDemo + 6
 loadSineTable = runDemo + 9
 updateMusic   = runDemo + 12 ; must be the last
+curVol        = $c4c
 
 compressedPartAddresses = xexStart-(NUM_PARTS*4) ; pointer to compressed part address table
 xexStart    = $2000 ; entry point of this demo executable, any parts can't have entry point before this

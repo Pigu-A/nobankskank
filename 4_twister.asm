@@ -208,13 +208,15 @@ frame3 = *-1
 	asl a
 	rol zTMP1
 	asl a
-	rol zTMP1 ; -2~2
+	rol zTMP1
+	asl a
+	rol zTMP1 ; -4~4
 	sta zTMP0
 	mva #0, zTMP2
 	ldx #119
 	lda #222
 frame4 = *-1
-	add #4
+	add #7
 	sta frame4
 	tay
 -	lda SineTable,y

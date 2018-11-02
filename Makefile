@@ -17,10 +17,10 @@ mptconv := $(PYTHON) utils/mptconv.py
 gfx := $(PYTHON) utils/gfx.py
 scrollergen := $(PYTHON) scroller/scrollergen.py
 
-all: pdv_nbsk.xex
+all: ayce_nbs.xex
 
 clean:
-	rm -f pdv_nbsk.xex
+	rm -f ayce_nbs.xex
 	rm -f $(LZ)
 	rm -f $(shell find . -name '*.lst')
 	rm -f $(shell find . -name '*.lz')
@@ -54,6 +54,6 @@ scroller/data.bin: scroller/data.txt scroller/font_all.1bpp
 %.lz: %.o ${LZ}
 	$(LZ) $< $@
 
-pdv_nbsk.xex: init.asm $(shell $(includes) init.asm)
+ayce_nbs.xex: init.asm $(shell $(includes) init.asm)
 	$(AS) $(XEXFLAGS) -l init.lst -o $@ init.asm
 	$(lstconv) init.lst

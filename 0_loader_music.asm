@@ -19,7 +19,7 @@ initQSTable_
 	; zARG0 = destination table's page
 	; zARG1 = positive entries count (anything higher than this is negative)
 	mvx zARG0, _pdst1+1
-	stx _ndst1+1 
+	stx _ndst1+1
 	inx ; make a copy on the next page for negative offset support too
 	stx _pdst2+1
 	stx _ndst2+1
@@ -114,7 +114,7 @@ runDemo_
 	;  7   $23
 	;  8   $25
 	;  9   $30
-	mvx #$30*2, pozsng
+	mvx #0, pozsng
 	mva #3, rSKCTL
 	sta rSKCTL+$10
 	; convert the mpc file back to mpt
@@ -160,7 +160,57 @@ runDemo_
 	dex
 	bne -
 	
-	ldx #8*4
+	; count extended ram size
+ext_b  = $4000
+detect_ext
+	lda rPORTB
+	pha
+	mva #$ff, rPORTB
+	lda ext_b
+	pha
+
+	ldx #$0f  ;remember ext bytes (from 16 blocks of 64kb)
+-	jsr setpb
+	mva ext_b, bsav,x
+	dex
+	bpl -
+
+	ldx #$0f  ;zeroing them (because you dont know
+-	jsr setpb ;which PORTB bit combinations enable which banks)
+	mva #$00, ext_b
+	dex
+	bpl -
+
+	stx rPORTB ;eliminate basic memory
+	stx ext_b
+	stx $00	  ;required for some 256k expansions
+
+	ldy #$00  ;loop counting 64k blocks
+	ldx #$0f
+-	jsr setpb
+	lda ext_b ;if ext_b is non-zero, block is counted
+	bne +
+	dec ext_b ;otherwise mark as counted
+	lda ext_b ;check if it's smarked (if not, hardware is borked)
+	bpl +
+	iny
++	dex
+	bpl -
+
+	ldx #$0f ;restore ext value
+-	jsr setpb
+	mva bsav,x, ext_b
+	dex
+	bpl -
+
+	stx rPORTB ;X=$FF
+	pla
+	sta ext_b
+	pla
+	sta rPORTB
+	sty z64ksOfGay
+	
+	ldx #0
 	geq loader
 loop
 	sei
@@ -168,7 +218,7 @@ loop
 	sty rDMACTL ; turn off all DMAs for faster decompression
 	; os rom swap out is done in part 1
 	; uncomment this when debugging each parts
-	mva #$fe, rPORTB
+	; mva #$fe, rPORTB
 	mwa #defaultvbi, rNMI
 	mva #$40, rNMIEN
 loader
@@ -194,6 +244,17 @@ _entry = *-2
 	pla
 	tax
 	jmp loop
+
+setpb
+	txa ;change bits order: %0000dcba -> %cba000d0
+	lsr	     
+	ror
+	ror
+	ror
+	adc #$01 ;set bit 1 relative to C sstate
+	ora #$01 ;set OS ROM control bit to default value
+	sta rPORTB
+	rts
 	
 	; keep music running while the part is being decompressed
 defaultvbi
@@ -206,4 +267,7 @@ defaultvbi
 	ldy nmiY
 	rti
 	
+bsav	.byte 16
+	
+	.cerror curVol != volume, format("curVol (%#04x) and volume (%#04x) pointers mismatch", curVol, volume)
 	.cerror * > compressedPartAddresses, format("Music data is too large and goes over compressedPartAddresses by %d bytes", * - compressedPartAddresses)

@@ -45,6 +45,8 @@ loop
 -	cmp rVCOUNT
 	bne -
 	sta rCOLBK
+	jsr scene0 ; update scene-specific variables
+scefunc = *-2
 	ldx #DURATION
 frame = *-1
 	inx
@@ -298,6 +300,33 @@ _shpos	.char  0,-9,  8,-17, 16, 24,-33, 32 ; upper nybble
 		.char -1, 0, -9,  8, 16,-25, 24,-33 ; lower nybble
 _shamt	.byte 12, 3,  6,  9,  0,  9,  6,  3 ; (4-shifts)*3
 		.byte  0, 9,  6,  3, 12,  3,  6,  9
+
+scene0
+	lda zCurMsxOrd
+	cmp #$30
+	bcc _skip
+	lda zCurMsxRow
+	bne _skip
+	mwa #scene1, scefunc
+_skip
+	rts
+	
+scene1
+	lda zCurMsxRow
+	cmp #$1c
+	bcc _skip
+	mva #0, rHPOSP0
+	sta rHPOSP1
+	sta rHPOSP2
+	sta rHPOSP3
+	sta rHPOSM0
+	sta rHPOSM1
+	sta rHPOSM2
+	sta rHPOSM3
+	pla ; pop return address so the stack points 
+	pla ; to the loader's return address instead
+_skip
+	rts
 
 	.enc "greets"
 greets

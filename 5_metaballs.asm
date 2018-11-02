@@ -6,7 +6,6 @@ SDLSTL = $230
 ball1Y = GVarsZPBegin-12
 ball1X = GVarsZPBegin-11
 ball1R = GVarsZPBegin-10
-volume = $c4c ; from part 0
 	
 TRESHOLD = 8
 
@@ -133,13 +132,13 @@ loop
 	
 renderballs
 	; update the size according to the music
-	lda volume ; get the volume from the player
+	lda curVol ; get the volume from the player
 	and #$0f
 	asl a
 	add #8
 	sta ball1R
 	sta ball1R+6
-	lda volume+1
+	lda curVol+1
 	and #$0f
 	asl a
 	add #8
@@ -384,9 +383,11 @@ page = *-2
 	.word dlist
 	
 colors	.byte $7e,$8e,$9e,$ae,$04,$06,$0a,$0e,$00
-arcs ; (asin((x-8)/8)*128/π)%256
-	.char -64,-43,-34,-27,-21,-15,-10,-5
-	.char 0,5,10,15,21,27,34,43,64
+arcs ; (asin((x-8)/8)*128/π)%256 map on cylinder for final version
+	; .char -64,-43,-34,-27,-21,-15,-10,-5
+	; .char 0,5,10,15,21,27,34,43,64
+	.char -64,-56,-48,-40,-32,-24,-16,-8
+	.char 0,8,16,24,32,40,48,56,64
 xanim_d
 	.byte 0,10,9,7,5,4,3,3,3,2,3,3,2,3,2,3
 	.byte 2,10,9,7,5,4,3,3,3,2,3,3,2,3,2,3

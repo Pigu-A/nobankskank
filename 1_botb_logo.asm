@@ -1,6 +1,8 @@
 ; Part 1: BotB logo
 	.include "gvars.asm"
 
+Ma = GVarsZPBegin-24
+Mb = Ma+2
 SDLSTL = $230
 COLOR = $2c0
 dlist = $bc20
@@ -53,6 +55,12 @@ _dst2 = *-2
 	
 	lda #>SineTable
 	jsr loadSineTable
+	mva >#QSTable, zARG0
+	mva #192, zARG1
+	jsr initQSTable
+	; install vector to Ma and Mb instead since zARG2-3 is already occupied
+	mva >#QSTable, Ma+1
+	sta Mb+1
 
 initcharmap	
 	; force 40x24 hires char mode with data at $bc40
@@ -131,7 +139,7 @@ putlogobitmap
 	; |     \ /
 	; |      v
 	; v          texture
-Ay  = GVarsZPBegin-20 ; starting texture pos
+Ay  = Mb+2 ; starting texture pos
 Ax  = Ay+2
 By  = Ay+4 ; texture pos to advance each view x change
 Bx  = Ay+6
@@ -150,7 +158,7 @@ bx  = zTMP7 ;
 	mwa #$100, Bx
 	mwa #0, By
 	mwa #0, Cx
-	mwa #$100, Cy
+	mwa #$200, Cy
 	mwa #vbk, rNMI
 	mva #0, rIRQEN
 	mva #$40, rNMIEN ; vblank
@@ -323,7 +331,8 @@ _by4hi = *-1
 +	jmp _loop
 	
 	; TODO: properly animate this
-+	
++	lda haltroto
+	beq placeroto
 	lda Ay
 	add #$33
 	sta Ay
@@ -387,6 +396,10 @@ vbk
 	sty nmiY
 	mwa SDLSTL, rDLISTL
 	mva curpage, rCHBASE
+	ldx #8
+-	mva COLOR,x, rCOLPM0,x
+	dex
+	bpl -
 	jsr updateMusic
 	lda nmiA
 	ldx nmiX
@@ -395,9 +408,149 @@ vbk
 	
 scene0
 	lda zCurMsxOrd
+	beq _skip
+	inc haltroto
+	mwa #scene1, scefunc
+_skip
+	rts
+haltroto	.byte 0
+
+scene1
+	lda _siz
+	cmp #9
+	bcc _skip
+	mva #$00, zTMP0
+	jsr _box
+_skip
+	inc _siz
+	lda _siz
+	cmp #41
+	beq _skip2
+	mva #$80, zTMP0
+	jsr _box
+	rts
+_skip2
+	mwa #scene2, scefunc
+	rts
+_siz	.byte 8
+_box
+	lda _siz
+	lsr a
+	sta zTMP1
+	lda #19
+	sub zTMP1
+	tay
+	lda #11+17
+	sub zTMP1
+	tax
+	mva chardataddrL,x, zTMP1
+	mva chardataddrH,x, zTMP2
+	mva _siz, zTMP3
+	lda zTMP0
+-	sta (zTMP1),y
+	iny
+	dec zTMP3
+	bne -
+	mva _siz, zTMP3
+-	lda zTMP0
+	sta (zTMP1),y
+	inx
+	mva chardataddrL,x, zTMP1
+	mva chardataddrH,x, zTMP2
+	dec zTMP3
+	bne -
+	mva _siz, zTMP3
+	lda zTMP0
+-	sta (zTMP1),y
+	dey
+	dec zTMP3
+	bne -
+	tya
+	bmi +
+	mva _siz, zTMP3
+-	lda zTMP0
+	sta (zTMP1),y
+	dex
+	mva chardataddrL,x, zTMP1
+	mva chardataddrH,x, zTMP2
+	dec zTMP3
+	bne -
++	rts
+
+scene2
+	lda zCurMsxOrd
+	cmp #$02
+	bne _skipfade
+	lda zCurMsxRow
+	cmp #32
+	bcc _skipfade
+	dec _frame
+	bne _skipfade
+	mva #6, _frame
+	lda COLOR+5
+	and #$f
+	cmp #$f
+	beq +
+	tax
+	inx
+	stx COLOR+5
++	lda COLOR+6
+	and #$f
+	beq +
+	dec COLOR+6
+	mva COLOR+6, COLOR+8
++
+_skipfade
+	jmp _8
+_ptr = *-2
+_0 ; left
+	rts
+_8 ; end
+	lda zCurMsxOrd
+	cmp #$03
+	bcc +
+	lda zCurMsxRow
+	bne +
+	mwa #scene3, scefunc
++	rts
+_frame	.byte 2
+
+scene3
+	lda zCurMsxOrd
+	cmp #$04
+	bcc _skip
+	lda zCurMsxRow
+	bne _skip
+	mwa #scene4, scefunc
+_skip
+	rts
+
+scene4
+	lda zCurMsxRow
+	cmp #32
+	bcc _skipcol
+	lda curVol
+	and #$0f
+	sta COLOR+5
+	lda curVol
+	and #$f0
+	bne +
+	cmp #0
+_last = *-1
+	beq +
+	lda rRANDOM
+	and #$f0
+	sta COLOR+6
+	sta COLOR+8
++	sta _last
+	
+_skipcol
+	lda zCurMsxOrd
 	cmp #$05
 	bcc _skip
-	pla ; pop return address so the stack points 
+	mva #0, rCOLPF2
+	sta rCOLBK
+	pla ; pop return address so the stack points
 	pla ; to the loader's return address instead
 _skip
 	rts
@@ -427,9 +580,23 @@ botbDlist0 .block
 	.byte $41 ; jvb
 	.word dlist
 	.bend
+	
+chardataddr = chardat + range(0,40*24,40)
+dumm = $f800
+chardataddrL
+	.fill 17, <dumm
+	.byte <(chardataddr)
+	.fill 17, <dumm
+chardataddrH
+	.fill 17, >dumm
+	.byte >(chardataddr)
+	.fill 17, >dumm
 
 	.align $100
 botbTex	.binary "gfx/botb.t.1bpp"
 
-scratch .fill $100
+	.union
+scratch	.fill $100
+QSTable	.fill $200
+	.endu
 	.warn format("Part 1's memory usage: %#04x - %#04x", start, *)
