@@ -3,8 +3,8 @@
 
 Ma = GVarsZPBegin-24
 Mb = Ma+2
+SDMCTL = $22f
 SDLSTL = $230
-COLOR = $2c0
 dlist = $bc20
 chardat = $bc40
 charset = $c000
@@ -70,6 +70,18 @@ initcharmap
 	sta dlist-1, y
 	dey
 	bne -
+	mva #0, rHPOSP0
+	sta rHPOSP1
+	sta rHPOSP2
+	sta rHPOSP3
+	sta rPRIOR ; combine all plyer colors
+	mva #3, rSIZEP0 ; quad width
+	sta rSIZEP1
+	sta rSIZEP2
+	sta rSIZEP3
+	mva #$2a, SDMCTL ; enable player and dlist dma, normal pf, double line player
+	mva #$02, rGRACTL ; turn on player
+	mva #>(player0-$200), rPMBASE
 	mwa #dlist, SDLSTL
 	mva #$ca, COLOR+5 ; default a8 palette
 	sta rCOLPF1
@@ -86,6 +98,24 @@ initcharmap
 	inx
 	cpx #240
 	bne -
+	
+initplayers
+	; make color masks as player graphics
+	tax
+	ldy #16
+	jsr blankpyrs
+	ldy #28
+	jsr fillpyrs
+	ldy #4
+	jsr blankpyrs
+	ldy #32
+	jsr fillpyrs
+	ldy #4
+	jsr blankpyrs
+	ldy #28
+	jsr fillpyrs
+	ldy #16
+	jsr blankpyrs
 	
 putlogotiles
 	; time to put botb logo in the middle of the screen
@@ -159,7 +189,7 @@ bx  = zTMP7 ;
 	mwa #0, By
 	mwa #0, Cx
 	mwa #$200, Cy
-	mwa #vbk, rNMI
+	mwa #vbi, rNMI
 	mva #0, rIRQEN
 	mva #$40, rNMIEN ; vblank
 	cli
@@ -330,6 +360,7 @@ _by4hi = *-1
 	inc rotoBaseX2+1
 +	jmp _loop
 	
+updateA
 	; TODO: properly animate this
 +	lda haltroto
 	beq placeroto
@@ -347,15 +378,41 @@ _by4hi = *-1
 	adc #4
 	and #31
 	sta Ax+1
-	lda ang
+	
+updateBC
+	mva #0, Bx+1
+	sta By+1
+	sta Cx+1
+	ldx #$90
+zooi = *-1
+	inx
+	inx
+	inx
+	stx zooi
+	lda SineTable,x
+	asr a
+	asr a ; -32~31
+	add #40 ; 8~71
+	tay
+	lda #0
+ang = *-1
 	add #7
 	sta ang
 	tax
-	ldy #0
+	
 	lda SineTable,x
+	asr a
+	sta Ma
+	neg
+	sta Mb
+	lda (Ma),y
+	sub (Mb),y
 	bpl +
-	dey
-+	sty By+1
+	dec By+1
++	asl a
+	rol By+1
+	asl a
+	rol By+1
 	asl a
 	rol By+1
 	asl a
@@ -364,47 +421,121 @@ _by4hi = *-1
 	txa
 	add #64 ; change to cos(x)
 	tax
-	ldy #0
 	lda SineTable,x
+	asr a
+	sta Ma
+	neg
+	sta Mb
+	lda (Ma),y
+	sub (Mb),y
 	bpl +
-	dey
-+	sty Bx+1
+	dec Bx+1
++	asl a
+	rol Bx+1
+	asl a
+	rol Bx+1
 	asl a
 	rol Bx+1
 	sta Bx
-	mvy Bx+1, Cy+1
-	asl a
-	rol Cy+1
 	sta Cy
+	mva Bx+1, Cy+1
+	asl Cy
+	rol Cy+1
 	txa
 	add #64 ; change to -sin(x)
 	tax
-	ldy #0
 	lda SineTable,x
+	asr a
+	sta Ma
+	neg
+	sta Mb
+	lda (Ma),y
+	sub (Mb),y
 	bpl +
-	dey
-+	sty Cx+1
+	dec Cx+1
++	asl a
+	rol Cx+1
+	asl a
+	rol Cx+1
 	asl a
 	rol Cx+1
 	sta Cx
+	txa
 	jmp placeroto
-ang	.byte 0
+	
+blankpyrs
+	lda #0
+-	sta player0,x
+	sta player1,x
+	sta player2,x
+	sta player3,x
+	inx
+	dey
+	bne -
+	rts
+	
+fillpyrs
+	lda #$3f
+	sta player0,x
+	lda #$ff
+	sta player1,x
+	sta player2,x
+	lda #$fc
+	sta player3,x
+	inx
+	dey
+	bne fillpyrs
+	rts
 
-vbk
+vbi
 	sta nmiA
-	stx nmiX
+	bit rNMIST
+	bpl +
+	jmp dli1
+VDSLST = *-2
++	stx nmiX
 	sty nmiY
 	mwa SDLSTL, rDLISTL
+	mva SDMCTL, rDMACTL
 	mva curpage, rCHBASE
 	ldx #8
 -	mva COLOR,x, rCOLPM0,x
 	dex
 	bpl -
 	jsr updateMusic
-	lda nmiA
 	ldx nmiX
 	ldy nmiY
+retdli
+	lda nmiA
 	rti
+	
+dli1 ; center
+	lda #2
+	sta rWSYNC
+	sta rCHACTL
+	lda dlicolupd
+	beq +
+	mva COLOR+9, rCOLPM0
+	mva COLOR+10, rCOLPM1
+	mva COLOR+11, rCOLPM2
+	mva COLOR+12, rCOLPM3
+	mva COLOR+13, rCOLPF2
++	mwa #dli2, VDSLST
+	gne retdli
+	
+dli2 ; bottom
+	lda #6
+	sta rWSYNC
+	sta rCHACTL ; xflip tiles on non-center rows
+	lda dlicolupd
+	beq +
+	mva COLOR+14, rCOLPM0
+	mva COLOR+15, rCOLPM1
+	mva COLOR+16, rCOLPM2
+	mva COLOR+17, rCOLPM3
+	mva COLOR+18, rCOLPF2
++	mwa #dli1, VDSLST
+	gne retdli
 	
 scene0
 	lda zCurMsxOrd
@@ -414,6 +545,7 @@ scene0
 _skip
 	rts
 haltroto	.byte 0
+dlicolupd	.byte 0
 
 scene1
 	lda _siz
@@ -430,6 +562,7 @@ _skip
 	jsr _box
 	rts
 _skip2
+	mva #$c0, rNMIEN
 	mwa #scene2, scefunc
 	rts
 _siz	.byte 8
@@ -480,7 +613,7 @@ _box
 scene2
 	lda zCurMsxOrd
 	cmp #$02
-	bne _skipfade
+	bne _skipall
 	lda zCurMsxRow
 	cmp #32
 	bcc _skipfade
@@ -498,37 +631,189 @@ scene2
 	and #$f
 	beq +
 	dec COLOR+6
-	mva COLOR+6, COLOR+8
-+
++	lda COLOR+8
+	and #$f
+	beq _skipfade
+	dec COLOR+8
 _skipfade
-	jmp _8
+	lda zCurMsxRow
+	cmp #-1
+_last = *-1
+	sta _last
+	beq _skipall
+	and #7
+	bne _skipall
+	jmp _0
 _ptr = *-2
-_0 ; left
+_skipall
 	rts
-_8 ; end
+_0 ; left
+	mva #$50, zTMP0
+	mva #6, zTMP2
+	mva #25, zTMP3
+	ldx #0
+	jsr _draw
+	mwa #_1, _ptr
+	mva #$c0, zTMP0
+	mva #8, zTMP2
+	mva #25, zTMP3
+	ldx #7
+	jmp _draw
+_1 ; downright
+	mva #$40, zTMP0
+	mva #8, zTMP2
+	mva #41, zTMP3
+	mva #$88, _cmd ; dey
+	ldx #25
+	jsr _draw
+	mwa #_2, _ptr
+	mva #$c0, zTMP0
+	mva #6, zTMP2
+	mva #41, zTMP3
+	ldx #34
+	jmp _draw
+_2 ; up
+	mwa #_3, _ptr
+	mva #$c0, zTMP0
+	mva #8, zTMP2
+	mva #23, zTMP3
+	ldx #16
+	jmp _draw
+_3 ; right
+	mva #$c0, zTMP0
+	mva #8, zTMP2
+	mva #25, zTMP3
+	mva #$c8, _cmd ; iny
+	ldx #25
+	jsr _draw
+	mwa #_4, _ptr
+	mva #$40, zTMP0
+	mva #6, zTMP2
+	mva #25, zTMP3
+	ldx #34
+	jmp _draw
+_4 ; downleft
+	mva #$d0, zTMP0
+	mva #6, zTMP2
+	mva #41, zTMP3
+	mva #$88, _cmd ; dey
+	ldx #0
+	jsr _draw
+	mwa #_5, _ptr
+	mva #$40, zTMP0
+	mva #8, zTMP2
+	mva #41, zTMP3
+	ldx #7
+	jmp _draw
+_5 ; upright
+	mva #$40, zTMP0
+	mva #8, zTMP2
+	mva #23, zTMP3
+	ldx #25
+	jsr _draw
+	mwa #_6, _ptr
+	mva #$c0, zTMP0
+	mva #6, zTMP2
+	mva #23, zTMP3
+	ldx #34
+	jmp _draw
+_6 ; down
+	mwa #_7, _ptr
+	mva #$c0, zTMP0
+	mva #8, zTMP2
+	mva #41, zTMP3
+	ldx #16
+	jmp _draw
+_7 ; upleft
+	mva #$d0, zTMP0
+	mva #6, zTMP2
+	mva #23, zTMP3
+	ldx #0
+	jsr _draw
+	mwa #scene2_0, scefunc
+	mva #$40, zTMP0
+	mva #8, zTMP2
+	mva #23, zTMP3
+	ldx #7
+	jmp _draw
+_frame	.byte 2
+_draw
+-	ldy zTMP3
+	mva #8, zTMP1
+-	mva chardataddrL,y, _dst
+	mva chardataddrH,y, _dst+1
+	mva zTMP0, $ffff,x
+_dst = *-2
+	iny
+_cmd = *-1
+	inc zTMP0
+	dec zTMP1
+	bne -
+	inx
+	dec zTMP2
+	bne --
+	rts
+	
+scene2_0 ; end
 	lda zCurMsxOrd
 	cmp #$03
 	bcc +
 	lda zCurMsxRow
 	bne +
+	mva #$28, rHPOSP0
+	mva #$4c, rHPOSP1
+	mva #$94, rHPOSP2
+	mva #$b8, rHPOSP3
+	inc dlicolupd
 	mwa #scene3, scefunc
 +	rts
-_frame	.byte 2
 
 scene3
-	lda zCurMsxOrd
+	lda zCurMsxRow
+	and #7
+	cmp #-1
+_last = *-1
+	sta _last
+	beq ++
+	ldx #0
+	ldy #5
+	cmp #0
+	beq +
+	ldx #5
+	ldy #6
+	cmp #4
+	beq +
+	ldx #11
+	ldy #4
+	cmp #6
+	bne ++
++	sty zTMP0
+-	ldy _colp,x
+	lda rRANDOM
+	and #$f2
+	sta COLOR,y
+	inx
+	dec zTMP0
+	bne -
++	lda zCurMsxOrd
 	cmp #$04
 	bcc _skip
 	lda zCurMsxRow
+	cmp #32
 	bne _skip
+	dec	dlicolupd
+	mva #0, rHPOSP0
+	sta rHPOSP1
+	sta rHPOSP2
+	sta rHPOSP3
 	mwa #scene4, scefunc
 _skip
 	rts
+_colp .byte 1,2,13,15,16,0,3,10,11,14,17,6,9,12,18
+	
+COLOR .fill 19
 
 scene4
-	lda zCurMsxRow
-	cmp #32
-	bcc _skipcol
 	lda curVol
 	and #$0f
 	sta COLOR+5
@@ -574,9 +859,11 @@ botbDlist0 .block
 	.byte $70, $70, $70 ; 24 blank lines
 	.byte $42 ; 24 mode 2
 	.word chardat
-	.rept 23
-	.byte $02
-	.next
+	.fill 5, $02
+	.byte $82
+	.fill 8, $02
+	.byte $82
+	.fill 8, $02
 	.byte $41 ; jvb
 	.word dlist
 	.bend
@@ -594,9 +881,14 @@ chardataddrH
 
 	.align $100
 botbTex	.binary "gfx/botb.t.1bpp"
-
+	
+	.align $400
 	.union
 scratch	.fill $100
 QSTable	.fill $200
 	.endu
+player0	.fill $80
+player1	.fill $80
+player2	.fill $80
+player3	.fill $80
 	.warn format("Part 1's memory usage: %#04x - %#04x", start, *)
