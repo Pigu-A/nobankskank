@@ -835,6 +835,11 @@ _skipcol
 	bcc _skip
 	mva #0, rCOLPF2
 	sta rCOLBK
+	sta rSIZEP0
+	sta rSIZEP1
+	sta rSIZEP2
+	sta rSIZEP3
+	mva #2, rCHACTL
 	pla ; pop return address so the stack points
 	pla ; to the loader's return address instead
 _skip
