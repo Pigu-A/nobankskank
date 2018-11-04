@@ -1,12 +1,12 @@
 ; Part 8: greets over 3d bridge
 	.include "gvars.asm"
 	
-VDSLST = $200
 SDMCTL = $22f
 SDLSTL = $230
 GPRIOR = $26f
+buf_Screen = $a000
 
-DURATION = 92
+DURATION = 95
 
 *	= partEntry
 start
@@ -14,11 +14,52 @@ start
 	; mva #192, zARG1
 	; jsr initQSTable
 	
+	; clear screen and copy the bridge data
+	; lda #0
+	; ldx #36
+; -	sta buf_Screen,x
+	; sta buf_Screen+$1000,x
+	; dex
+	; bpl -
+	; ldx #0
+; _loop
+	; ldy #0
+; -	lda bridgegfx,y
+; _src = *-2
+	; sta buf_Screen+37,y
+; _dst = *-2
+	; iny
+	; cpy #12
+	; bne -
+	; lda #0
+; -	sta buf_Screen+37,y
+; _dst2 = *-2
+	; iny
+	; cpy #46
+	; bne -
+	; addw #12, _src
+	; cpx #87
+	; beq +
+	; addb #46, _dst
+	; sta _dst2
+	; adcb #0, _dst+1
+	; sta _dst2+1
+	; inx
+	; cpx #128
+	; bne _loop
+	; geq ++
+; +	mva #<(buf_Screen+$1025), _dst
+	; sta _dst2
+	; mva #>(buf_Screen+$1025), _dst+1
+	; sta _dst2+1
+	; inx
+	; gne _loop
+; +
 	mva #$0f, rCOLPM0
 	sta rCOLPM1
 	sta rCOLPM2
 	sta rCOLPM3
-	; clear player/missile data
+	; clear player/missile data and buffers
 	lda #0
 	ldy #0
 -	sta missile,y
@@ -26,25 +67,25 @@ start
 	sta player1,y
 	sta player2,y
 	sta player3,y
+	; sta scrols,y
+	sta bgcols2,y
 	iny
 	bne -
 	ldx #$44
 	jsr settextpos
+    mwa #dlist, SDLSTL
 	mva >#(missile-$300), rPMBASE
 	mva #$01, GPRIOR ; all players above pf
-	; mva #$3e, SDMCTL ; enable player, missile and dlist dma, normal pf, single line player
-	mva #$1c, SDMCTL
+	mva #$3e, SDMCTL ; enable player, missile and dlist dma, normal pf, single line player
 	mva #$03, rGRACTL ; turn on player & missile
 	jsr disnmi
 	mwa #vbi, rNMI
-	mva #$40, rNMIEN ; vblank
+	mva #$c0, rNMIEN ; dlist + vblank
 
 loop
-	mva #0, rCOLBK
 	lda #120 ; wait until out of screen
 -	cmp rVCOUNT
 	bne -
-	sta rCOLBK
 	jsr scene0 ; update scene-specific variables
 scefunc = *-2
 	ldx #DURATION
@@ -152,21 +193,91 @@ xpos = *-1
 	ldy #0
 siz = *-1
 	jsr settextpos
+	
+updatebridge
+	ldx brypos
+	ldy #3
+-	dex
+	bpl +
+	ldx #$7f
++	lda rRANDOM
+	and #$17
+	add #$b8
+	sta bgcols2,x
+	sta bgcols2+$80,x
+	dey
+	bne -
+	stx brypos
 	jmp loop
 yofs	.byte 4, 8, 16
 skips	.byte 9, 6, 0
 
 vbi
+	bit rNMIST
+	bpl +
+	jmp dli1
+VDSLST = *-2
++
 	sta nmiA
 	stx nmiX
 	sty nmiY
-	; mwa SDLSTL, rDLISTL
+	mwa SDLSTL, rDLISTL
 	mva SDMCTL, rDMACTL
+	mwa #dli1, VDSLST
 	jsr updateMusic
 	lda nmiA
 	ldx nmiX
 	ldy nmiY
 	rti
+	
+dli1
+	sta nmiA
+	stx nmiX
+	ldx #0
+_pos = *-1
+	lda bgcols,x
+	inx
+	stx _pos
+	sta rWSYNC
+	sta rCOLBK
+	cpx #6
+	bne +
+	mva #0, _pos
+	mwa #dli2, VDSLST
++	lda nmiA
+	ldx nmiX
+	rti
+	
+dli2
+	sta nmiA
+	stx nmiX
+	sty nmiY
+	lda #0
+brypos = *-1
+	; sta _y1
+	sta _y2
+	ldx #0
+-	ldy curveLUT,x
+	; lda scrols,y
+_y1 = *-2
+	; pha
+	lda bgcols2,y
+_y2 = *-2
+	sta rWSYNC
+	sta rCOLBK
+	; pla
+	; sta rHSCROL
+	inx
+	bpl -
+	mva #0, rCOLBK
+	lda nmiA
+	ldx nmiX
+	ldy nmiY
+	rti
+	
+	
+bgcols
+	.byte $80,$82,$84,$86,$88,$8a
 	
 settextpos
 _p = [15,12,9,6,3,0,0,3]
@@ -352,15 +463,27 @@ greets
 	.text " mskty  "
 	.text "tppdevs "
 	
-	; .align $100
-; QSTable	.fill $200
+; bridgegfx	.binary "gfx/bridge.2bpp"
+	
+	.align $100
+curveLUT
+_x := 0
+	.rept 128
+	.byte (1-(_x/128.0-1)**2)*96+_x*32/128
+_x := _x+1
+	.next
 	
 	.align $800
 	.union
 	.struct
 font	.binary "gfx/font_greets.c.1bpp"
 txtbuf	.fill 8*5
-dlist	.byte $7,$e,$5,$7
+dlist
+	.byte $f0
+	.fill 12, [$70,$f0]
+    ; .fill 128*3, [$5e,$00,$a0]
+    .byte $41
+    .word dlist
 	.ends
 	.fill $300
 	.endu
@@ -369,4 +492,7 @@ player0	.fill $100
 player1	.fill $100
 player2	.fill $100
 player3	.fill $100
+QSTable	.fill $200
+; scrols	.fill $100
+bgcols2 .fill $100
 	.warn format("Part 8's memory usage: %#04x - %#04x", start, *)

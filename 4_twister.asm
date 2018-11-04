@@ -61,7 +61,7 @@ _dst2 = *-2
 	lda #>SineTable
 	jsr loadSineTable
 	
-    mwa #<displaylist0, SDLSTL
+    mwa #displaylist0, SDLSTL
     mva #$2e, SDMCTL ; enable player, missile and dlist dma, normal pf, double line player
 	mva #$12, rPRIOR ; player 1-2 above, player 3-4 below, player 5
 	mva #$03, rGRACTL
@@ -345,6 +345,10 @@ scene1
 	lda zCurMsxRow
 	cmp #$28
 	bcc _skip
+	mva #0, rHPOSP0
+	sta rHPOSP1
+	sta rHPOSP2
+	sta rHPOSP3
 	pla ; pop return address so the stack points 
 	pla ; to the loader's return address instead
 _skip

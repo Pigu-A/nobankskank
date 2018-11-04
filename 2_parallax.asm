@@ -57,41 +57,66 @@ scefunc = *-2
 	rts ; end this part
 beginprog
     ;make sure we zero our ypointers so we don't spin or overwrite mem
+    ldy scrollstallcont
+    cpy #scrollstall
+    blt bp2
+    ldy #0
+    sty scrollstallcont
+bp2
+    inc scrollstallcont
     lda #0
     sta ypos
-    sta typos
     ;cleanup foreground hscroll
-    lda forescrollcont
-    cmp #16
-    blt backgroundscrollcleanup
-    lda #0
-    sta forescrollcont
-    ;because forescroll got reset, we'll need to increment the texture pointer
-    lda foretexturecont
-    adc #1
-    cmp #4
-    blt backgroundscrollcleanup
-    lda #0
-    sta foretexturecont
-    ;cleanup background scroll
-backgroundscrollcleanup
+foregroundscrollcleanuphscroll
+ ;   dec forescrollcont  ;balance forescroll - this is super dumb, I know
+    ;lda forescrollcont
+    ;and #7
+    ;sta forescrollcont
+    ;cmp #0
+    ;bne skip2
+foregroundscrollcleanuptexture
+    ;lda foretexturecont
+    ;add #1
+    ;cmp #20
+    ;blt forescrollcleanupdone2
+    ;lda #0
+    ;sta foretexturecont
+forescrollcleanupdone2
+    ;sta foretexturecont
+    ;jmp backgroundscrollcleanupcheck
+skip2
+
+backgroundscrollcleanupcheck
+    ;always update hscrol to make sure background is scrolling correcrtly
     lda backscrollcont
-    cmp #16
-    blt beforedrawloop
-    lda #0
-    sta backscrollcont
-    lda textureoff
-    adc #1
-    cmp #20
-    blt beforedrawloop
-    lda #0
-beforedrawloop
-    sta textureoff
-    ;now make sure HSCROLL is current
-    lda backscrollcont
-    adc #1
-    sta backscrollcont
     sta rHSCROL
+    ;check if this is an update frame
+    ;ldy scrollstallcont
+    ;cpy #scrollstall
+    ;blt backgroundscrollcleanupdone
+backgroundscrollcleanuphscroll  
+    ;check if scrollcont needs to be updated
+    ;dec backscrollcont
+    ;bpl skip              ;move scroll
+   ; cmp #255             ;compare to see if out of range
+   ; blt backgroundscrollcleanupdone1
+    ;lda #7             ;zero the scroll counter for background
+    ;sta backscrollcont
+skip
+backgroundscrollcleanuptexture
+    ;lda backtexturecont
+    ;add #1             ;add one
+    ;cmp #20             ;if it's out of range
+    ;blt backgroundscrollcleanupdone2
+    ;lda #0
+    ;sta backtexturecont
+    ;jmp backgroundscrollcleanupdone
+backgroundscrollcleanupdone2
+    sta backtexturecont
+    jmp backgroundscrollcleanupdone
+backgroundscrollcleanupdone1
+    sta backscrollcont
+backgroundscrollcleanupdone
 ;drawloop runs as deferred VBL
 drawloop
     ;check screen ypointer to prevent overdrawing
@@ -111,32 +136,38 @@ preparebufferpostions2
     sta textureptr
     lda texture_hi,y
     sta textureptr+1
+checkwindowline
+    ;should have the ypos still in reg y
+    cpy #26                     ;get an actual value for this
+    bge prepareforblitforeground    ;if we're low enough on the screen, this will be the foreground scroller
 prepareforblit
-    ldy currtexpos              ;get X for texture
+    ldy backtexturecont              ;get the offset for texture1
+    sty currtexpos
 blitline
-    cpy #20
+    cpy #20                     ;check if the value is outside of tex memory
     blt blitlinexfer
     ldy #0                      ;going to overflow on the texture, reset xptr to 0
+    sty currtexpos
 blitlinexfer
     lda (textureptr),y          ;get our texture byte
-    sty currtexpos
     ldy currwindowx             ;get the xptr for drawing to screen
     cpy #20                     ;check to see if window X is offscreen
     bge blitlinefinish
     sta (screenptr),y           ;toss it into screen
-    iny                         ;hop to next screenmemory byte
-    sty currwindowx             ;store to window x var
-    ldy currtexpos
-    iny                         ;increment and jump back to check
-    sty currtexpos
+    inc currwindowx             ;increment the window position
+    inc currtexpos            ;increment the texture position 
+    ldy currtexpos            ;prepare to check texture mapping ptr 
     jmp blitline
 blitlinefinish
     lda #0
-    sta currwindowx
-    sta currtexpos
+    sta currwindowx             ;reset window position
     inc ypos                    ;straight memory increment, as we'll recall later
     ;TODO: increment texture position as well, when incremented
     jmp drawloop                ;goto check stage
+prepareforblitforeground
+    ldy foretexturecont
+    sty currtexpos
+    jmp blitline                ; we just needed to tack this on to grab foretexturecont
 
 vblbeginprog
 	sta nmiA
@@ -144,19 +175,24 @@ vblbeginprog
 	sty nmiY
 	bit rNMIST
 	bpl +
+    ;is this treating dli as an interrupt, or is it just executing in order at the end of vbl?
 	jmp dlipalette2
 VDSLST = *-2
 +	mwa sdlstl, rDLISTL
 	mva sdmctl, rDMACTL
+    mwa #dlipalette2, VDSLST
     ;make sure our colors are up to date
-    lda #$02
+    lda #$EE
     sta col1
-    lda #$08
+    lda #$FE
     sta col2
     lda #$0C
     sta col3
 	jsr updateMusic
-    
+
+   inc d7a+1
+   inc d7b+1
+
 retdli
 	lda nmiA
 	ldx nmiX
@@ -170,9 +206,11 @@ dlipalette2
     sta rWSYNC                   ;set WSYNC to await next hsync
     ;20-22 cycles available for Phase Two (swap colors here)
     ;change palette colors
-    lda #$50
+    lda #$00
+    sta col0
+    lda #$66
     sta col1
-    lda #$5c
+    lda #$50
     sta col2                    ;12 cycles
 	gne retdli
 
@@ -181,9 +219,9 @@ dlipalette3
     sta rWSYNC                 ;WSYNC
     ;20-22 cycles available for phase 2
     ;change on Color 1 and 3
-    lda #$92
+    lda #$ac
     sta col0
-    lda #$29
+    lda #$96
     sta col2
 	gne retdli
 
@@ -213,12 +251,11 @@ dlipalette5
 dliroutine
     mwa #dlipalette6, VDSLST
     sta rWSYNC                   ;set WSYNC to await next hsync
-    ;TODO: UPDATE TO GIVE A DIFFERENT HSCROLL VAL BASED ON MEMORY
-    ;inc rHSCROL                 ;increment hscroll
+    ;lda scrollstallcont
+    ;cmp #scrollstall
+    ;blt retdli
     lda forescrollcont          ;get the foreground hscroll counter
-    adc #2                      ;scroll at 2x speed
     sta rHSCROL
-    sta forescrollcont
 	jmp retdli
 
 dlipalette6
@@ -237,9 +274,9 @@ dlipalette7
     mwa #dlipalette8, VDSLST
     sta rWSYNC
     ;color updates
-    lda #$1A
+d7a    lda #$1A
     sta col2
-    lda #$66
+d7b    lda #$66
     sta col3
 	gne retdli
 
@@ -292,17 +329,17 @@ textureaddresses = range(realtexture, realtexture+960, 20)
 texture_hi  .byte   >(textureaddresses)
 texture_lo  .byte   <(textureaddresses)
 
-forescrollcont  .byte   $00
+forescrollcont  .byte   $03
 foretexturecont .byte   $00
-backscrollcont  .byte   $00
+backscrollcont  .byte   $03
 backtexturecont .byte   $00
 ypos            .byte   $00
-typos           .byte   $00
 
-texturelen      .byte   48
-textureoff      .byte   $00
 currtexpos      .byte   $00
 currwindowx     .byte   $00
+
+scrollstallcont .byte   $00
+scrollstall     = 2
 
     ;===============
     ;DISPLAY LIST
@@ -322,34 +359,34 @@ displaylist
 	.byte $5a, $c8, $e0
 	.byte $5a, $dc, $e0
 	.byte $5a, $f0, $e0
-	.byte $da, $04, $e1
+	.byte $5a, $04, $e1
 	.byte $5a, $18, $e1
-	.byte $da, $2c, $e1
+	.byte $5a, $2c, $e1
 	.byte $5a, $40, $e1
-	.byte $da, $54, $e1
+	.byte $5a, $54, $e1
 	.byte $5a, $68, $e1
-	.byte $da, $7c, $e1
+	.byte $5a, $7c, $e1
 	.byte $5a, $90, $e1
 	.byte $5a, $a4, $e1
-	.byte $da, $b8, $e1
+	.byte $5a, $b8, $e1
 	.byte $5a, $cc, $e1
 	.byte $5a, $e0, $e1
 	.byte $5a, $f4, $e1
 	.byte $5a, $08, $e2
 	.byte $5a, $1c, $e2
-	.byte $da, $30, $e2
+	.byte $5a, $30, $e2
 	.byte $5a, $44, $e2
 	.byte $5a, $58, $e2
 	.byte $5a, $6c, $e2
 	.byte $5a, $80, $e2
 	.byte $5a, $94, $e2
-	.byte $da, $a8, $e2
+	.byte $5a, $a8, $e2
 	.byte $5a, $bc, $e2
 	.byte $5a, $d0, $e2
 	.byte $5a, $e4, $e2
 	.byte $5a, $f8, $e2
 	.byte $5a, $0c, $e3
-	.byte $da, $20, $e3
+	.byte $5a, $20, $e3
 	.byte $5a, $34, $e3
 	.byte $5a, $48, $e3
 	.byte $5a, $5c, $e3
