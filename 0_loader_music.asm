@@ -218,9 +218,9 @@ loop
 	sty rDMACTL ; turn off all DMAs for faster decompression
 	; os rom swap out is done in part 1
 	; uncomment this when debugging each parts
-	mva #$fe, rPORTB
+	; mva #$fe, rPORTB
 	mwa #defaultvbi, rNMI
-	; mva #$40, rNMIEN
+	mva #$40, rNMIEN
 loader
 	lda compressedPartAddresses,x
 	sta zARG0
