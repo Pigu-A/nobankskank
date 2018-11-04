@@ -456,7 +456,7 @@ greets
 	.text "sibcrew "
 	.text " d h s  "
 	.text "chkpoint"
-	.text "s f m x "
+	.text "s m f x "
 	.text " lamers "
 	.text " r m c  "
 	.text " v l k  "
